@@ -1,6 +1,7 @@
 package com.codetrack.backend.controller;
 
 import com.codetrack.backend.dto.AuthResponse;
+import com.codetrack.backend.dto.ChangeEmailRequest;
 import com.codetrack.backend.dto.ChangePasswordRequest;
 import com.codetrack.backend.dto.LoginRequest;
 import com.codetrack.backend.service.AuthService;
@@ -35,5 +36,12 @@ public class AuthController {
                                                @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(authentication.getName(), request);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/change-email")
+    @Operation(summary = "Change the authenticated admin's login email")
+    public ResponseEntity<AuthResponse> changeEmail(Authentication authentication,
+                                                    @Valid @RequestBody ChangeEmailRequest request) {
+        return ResponseEntity.ok(authService.changeEmail(authentication.getName(), request));
     }
 }

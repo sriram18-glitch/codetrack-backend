@@ -2,6 +2,7 @@ package com.codetrack.backend.service;
 
 import com.codetrack.backend.dto.AdminSummary;
 import com.codetrack.backend.dto.AuthResponse;
+import com.codetrack.backend.dto.ChangeEmailRequest;
 import com.codetrack.backend.dto.ChangePasswordRequest;
 import com.codetrack.backend.dto.LoginRequest;
 import com.codetrack.backend.entity.Admin;
@@ -62,5 +63,30 @@ public class AuthService {
         admin.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         adminRepository.save(admin);
         log.info("Password changed for admin: id={}, email={}", admin.getId(), admin.getEmail());
+    }
+
+    @Transactional
+    public AuthResponse changeEmail(String email, ChangeEmailRequest request) {
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Admin not found"));
+
+        if (!passwordEncoder.matches(request.currentPassword(), admin.getPasswordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
+        }
+
+        String newEmail = request.newEmail().trim();
+        if (adminRepository.findByEmailIgnoreCase(newEmail).isPresent()) {
+            throw new ApiException(HttpStatus.CONFLICT, "An account with this email already exists");
+        }
+
+        admin.setEmail(newEmail);
+        adminRepository.save(admin);
+        log.info("Email changed for admin: id={}, newEmail={}", admin.getId(), newEmail);
+
+        String token = jwtService.generateToken(admin);
+        AdminSummary summary = new AdminSummary(
+                admin.getId(), admin.getEmail(), admin.getFullName(), admin.getCollegeName()
+        );
+        return AuthResponse.of(token, jwtService.getExpirationSeconds(), summary);
     }
 }
