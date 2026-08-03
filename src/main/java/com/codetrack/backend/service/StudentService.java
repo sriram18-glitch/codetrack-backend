@@ -3,8 +3,10 @@ package com.codetrack.backend.service;
 import com.codetrack.backend.dto.CreateStudentRequest;
 import com.codetrack.backend.dto.StudentResponse;
 import com.codetrack.backend.dto.UpdateStudentRequest;
+import com.codetrack.backend.entity.CodingProfile;
 import com.codetrack.backend.entity.Student;
 import com.codetrack.backend.exception.ApiException;
+import com.codetrack.backend.repository.CodingProfileRepository;
 import com.codetrack.backend.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class StudentService {
 
     private final StudentRepository studentRepository;
+    private final CodingProfileRepository codingProfileRepository;
 
     @Transactional
     public StudentResponse createStudent(CreateStudentRequest request) {
@@ -102,6 +105,15 @@ public class StudentService {
         student.setPhone(request.phone());
 
         student = studentRepository.save(student);
+        Student saved = student;
+
+        CodingProfile profile = codingProfileRepository.findByStudentId(id)
+                .orElseGet(() -> CodingProfile.builder().student(saved).build());
+        profile.setLeetcodeUsername(blankToNull(request.leetcodeUsername()));
+        profile.setCodeforcesUsername(blankToNull(request.codeforcesUsername()));
+        profile.setCodechefUsername(blankToNull(request.codechefUsername()));
+        codingProfileRepository.save(profile);
+
         log.info("Student updated: id={}, rollNumber={}", student.getId(), student.getRollNumber());
 
         return toResponse(student);
@@ -117,6 +129,10 @@ public class StudentService {
     private Student findById(UUID id) {
         return studentRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Student not found"));
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     private StudentResponse toResponse(Student student) {
