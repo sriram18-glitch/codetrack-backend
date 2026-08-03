@@ -16,6 +16,13 @@ public record PerformanceResponse(
         Integer leetcodeMedium,
         Integer leetcodeHard,
         Integer codeforcesRating,
+        Integer codeforcesSolved,
+        Integer codeforcesMaxRating,
+        String codeforcesRank,
+        Integer codeforcesContestCount,
         Integer codechefRating,
+        Integer codechefSolved,
+        String codechefStars,
+        Integer codechefGlobalRank,
         Instant lastUpdated
 ) {}

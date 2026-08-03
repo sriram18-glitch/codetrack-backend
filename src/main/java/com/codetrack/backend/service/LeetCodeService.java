@@ -118,7 +118,7 @@ public class LeetCodeService {
             int solved = matched.path("submitStats").path("acSubmissionNum").path(0).path("count").asInt();
 
             return Optional.of(new PlatformData(
-                    PLATFORM, rating, null, null, solved, easy, medium, hard, globalRanking
+                    PLATFORM, rating, null, null, solved, easy, medium, hard, globalRanking, null, null
             ));
         } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             log.warn("LeetCode sync failed for '{}': {}", username, ex.getMessage());

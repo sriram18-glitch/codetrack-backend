@@ -48,8 +48,29 @@ public class Performance {
     @Column(name = "codeforces_rating")
     private Integer codeforcesRating;
 
+    @Column(name = "codeforces_solved")
+    private Integer codeforcesSolved;
+
+    @Column(name = "codeforces_max_rating")
+    private Integer codeforcesMaxRating;
+
+    @Column(name = "codeforces_rank", length = 30)
+    private String codeforcesRank;
+
+    @Column(name = "codeforces_contest_count")
+    private Integer codeforcesContestCount;
+
     @Column(name = "codechef_rating")
     private Integer codechefRating;
+
+    @Column(name = "codechef_solved")
+    private Integer codechefSolved;
+
+    @Column(name = "codechef_stars", length = 10)
+    private String codechefStars;
+
+    @Column(name = "codechef_global_rank")
+    private Integer codechefGlobalRank;
 
     @Column(name = "last_updated")
     private Instant lastUpdated;

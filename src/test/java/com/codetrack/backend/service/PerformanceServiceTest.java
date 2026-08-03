@@ -106,7 +106,7 @@ class PerformanceServiceTest {
                 .student(student)
                 .codeforcesUsername("tourist")
                 .build();
-        PlatformData data = new PlatformData("CODEFORCES", 1800, 1900, "expert", null, null, null, null, null);
+        PlatformData data = new PlatformData("CODEFORCES", 1800, 1900, "expert", null, null, null, null, null, null, null);
 
         when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
         when(codingProfileRepository.findByStudentId(studentId)).thenReturn(Optional.of(profile));
@@ -144,7 +144,7 @@ class PerformanceServiceTest {
                 .student(student)
                 .codeforcesUsername("tourist")
                 .build();
-        PlatformData data = new PlatformData("CODEFORCES", 1800, 1900, "expert", null, null, null, null, null);
+        PlatformData data = new PlatformData("CODEFORCES", 1800, 1900, "expert", null, null, null, null, null, null, null);
 
         when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
         when(codingProfileRepository.findByStudentId(studentId)).thenReturn(Optional.of(profile));

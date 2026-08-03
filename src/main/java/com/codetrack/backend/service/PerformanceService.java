@@ -242,8 +242,19 @@ public class PerformanceService {
                 performance.setLeetcodeMedium(data.medium());
                 performance.setLeetcodeHard(data.hard());
             }
-            case CODEFORCES -> performance.setCodeforcesRating(data.rating());
-            case CODECHEF -> performance.setCodechefRating(data.rating());
+            case CODEFORCES -> {
+                performance.setCodeforcesRating(data.rating());
+                performance.setCodeforcesSolved(data.problemsSolved());
+                performance.setCodeforcesMaxRating(data.maxRating());
+                performance.setCodeforcesRank(data.rank());
+                performance.setCodeforcesContestCount(data.contestCount());
+            }
+            case CODECHEF -> {
+                performance.setCodechefRating(data.rating());
+                performance.setCodechefSolved(data.problemsSolved());
+                performance.setCodechefStars(data.stars());
+                performance.setCodechefGlobalRank(data.globalRanking());
+            }
             default -> throw new ApiException(HttpStatus.BAD_REQUEST, "Unsupported platform: " + data.platform());
         }
     }
@@ -286,7 +297,14 @@ public class PerformanceService {
                 performance.getLeetcodeMedium(),
                 performance.getLeetcodeHard(),
                 performance.getCodeforcesRating(),
+                performance.getCodeforcesSolved(),
+                performance.getCodeforcesMaxRating(),
+                performance.getCodeforcesRank(),
+                performance.getCodeforcesContestCount(),
                 performance.getCodechefRating(),
+                performance.getCodechefSolved(),
+                performance.getCodechefStars(),
+                performance.getCodechefGlobalRank(),
                 performance.getLastUpdated()
         );
     }

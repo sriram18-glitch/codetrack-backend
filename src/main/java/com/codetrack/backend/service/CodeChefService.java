@@ -75,7 +75,8 @@ public class CodeChefService {
                 if (handle.equalsIgnoreCase(entry.path("handle").asText())) {
                     Integer rating = entry.path("rating").isMissingNode() ? null : entry.path("rating").asInt();
                     String stars = entry.path("stars").isMissingNode() ? null : entry.path("stars").asText();
-                    return Optional.of(new PlatformData(PLATFORM, rating, null, stars, null, null, null, null, null));
+                    Integer globalRank = entry.path("global_rank").isMissingNode() ? null : entry.path("global_rank").asInt();
+                    return Optional.of(new PlatformData(PLATFORM, rating, null, null, null, null, null, null, globalRank, null, stars));
                 }
             }
             return Optional.empty();
@@ -109,7 +110,7 @@ public class CodeChefService {
                 }
             }
 
-            return Optional.of(new PlatformData(PLATFORM, rating, null, stars, null, null, null, null, null));
+            return Optional.of(new PlatformData(PLATFORM, rating, null, null, null, null, null, null, null, null, stars));
         } catch (RestClientException | NumberFormatException ex) {
             log.warn("CodeChef profile scrape failed for '{}': {}", handle, ex.getMessage());
             return Optional.empty();

@@ -13,5 +13,7 @@ public record PlatformData(
         Integer easy,
         Integer medium,
         Integer hard,
-        Integer globalRanking
+        Integer globalRanking,
+        Integer contestCount,
+        String stars
 ) {}

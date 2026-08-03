@@ -26,16 +26,22 @@ public class CodeforcesService {
     @Value("${app.platforms.codeforces.api-url:https://codeforces.com/api/user.info}")
     private String apiUrl;
 
+    @Value("${app.platforms.codeforces.rating-url:https://codeforces.com/api/user.rating}")
+    private String ratingUrl;
+
     /**
-     * Fetches a Codeforces user's rating/maxRating/rank from the public API.
-     * Returns empty if the handle does not exist or the API is unreachable.
+     * Fetches a Codeforces user's rating/maxRating/rank/contestCount from the public API.
+     * Returns empty if the handle does not exist or the API is unreachable. Problems
+     * solved is not exposed by the public API, so it is left null (the UI renders it
+     * as unavailable).
      */
     public Optional<PlatformData> fetch(String username) {
         if (username == null || username.isBlank()) {
             return Optional.empty();
         }
         try {
-            String url = apiUrl + "?handles=" + username.trim();
+            String handle = username.trim();
+            String url = apiUrl + "?handles=" + handle;
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 return Optional.empty();
@@ -43,7 +49,7 @@ public class CodeforcesService {
 
             JsonNode root = objectMapper.readTree(response.getBody());
             if (!"OK".equals(root.path("status").asText())) {
-                log.warn("Codeforces API error for '{}': {}", username, root.path("comment").asText("unknown"));
+                log.warn("Codeforces API error for '{}': {}", handle, root.path("comment").asText("unknown"));
                 return Optional.empty();
             }
 
@@ -58,10 +64,29 @@ public class CodeforcesService {
             Integer maxRating = user.path("maxRating").isMissingNode() ? null : user.path("maxRating").asInt();
             String rank = user.path("rank").isMissingNode() ? null : user.path("rank").asText();
 
-            return Optional.of(new PlatformData(PLATFORM, rating, maxRating, rank, null, null, null, null, null));
+            return Optional.of(new PlatformData(PLATFORM, rating, maxRating, rank, null, null, null, null, null,
+                    fetchContestCount(handle), null));
         } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             log.warn("Codeforces sync failed for '{}': {}", username, ex.getMessage());
             return Optional.empty();
+        }
+    }
+
+    private Integer fetchContestCount(String handle) {
+        try {
+            String url = ratingUrl + "?handle=" + handle;
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (!"OK".equals(root.path("status").asText()) || !root.path("result").isArray()) {
+                return null;
+            }
+            return root.path("result").size();
+        } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
+            log.warn("Codeforces contest count failed for '{}': {}", handle, ex.getMessage());
+            return null;
         }
     }
 }
