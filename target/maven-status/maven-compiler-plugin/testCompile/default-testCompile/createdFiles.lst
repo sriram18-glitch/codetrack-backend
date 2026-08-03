@@ -1,0 +1,6 @@
+com\codetrack\backend\service\AuthServiceTest.class
+com\codetrack\backend\service\CsvServiceTest.class
+com\codetrack\backend\service\InsightServiceTest.class
+com\codetrack\backend\service\AnalyticsServiceTest.class
+com\codetrack\backend\service\PerformanceServiceTest.class
+com\codetrack\backend\security\JwtServiceTest.class
