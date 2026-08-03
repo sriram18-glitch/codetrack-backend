@@ -23,9 +23,11 @@ import java.util.regex.Pattern;
 /**
  * LeetCode has no official public API. The community-standard GraphQL
  * endpoint is used, as the project spec describes. LeetCode's bot
- * protection requires a CSRF cookie: we fetch the site once to obtain the
+ * protection can require a CSRF cookie: we fetch the site once to obtain the
  * {@code csrftoken} cookie, then replay it with an {@code x-csrftoken}
- * header on the GraphQL call.
+ * header on the GraphQL call. The CSRF lookup is optional — the GraphQL
+ * endpoint still works without it, so a failed lookup (e.g. the homepage
+ * returning 403) is logged as a warning and the sync continues header-less.
  */
 @Slf4j
 @Service
@@ -63,19 +65,21 @@ public class LeetCodeService {
             return Optional.empty();
         }
         try {
-            String csrfToken = fetchCsrfToken();
-            if (csrfToken == null) {
-                log.warn("LeetCode: could not obtain csrf token");
-                return Optional.empty();
-            }
-
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set(HttpHeaders.USER_AGENT, browserUserAgent());
             headers.set(HttpHeaders.REFERER, "https://leetcode.com/");
             headers.set(HttpHeaders.ORIGIN, "https://leetcode.com");
-            headers.set(HttpHeaders.COOKIE, "csrftoken=" + csrfToken);
-            headers.set("x-csrftoken", csrfToken);
+
+            // CSRF is best-effort: if the homepage is unreachable the GraphQL
+            // call still works without it, so never fail the sync here.
+            String csrfToken = fetchCsrfToken();
+            if (csrfToken == null) {
+                log.warn("LeetCode: could not obtain csrf token; continuing without CSRF headers");
+            } else {
+                headers.set(HttpHeaders.COOKIE, "csrftoken=" + csrfToken);
+                headers.set("x-csrftoken", csrfToken);
+            }
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(
                     Map.of("query", QUERY, "variables", Map.of("username", username.trim())),
@@ -123,20 +127,25 @@ public class LeetCodeService {
     }
 
     private String fetchCsrfToken() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.USER_AGENT, browserUserAgent());
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        ResponseEntity<Void> response = restTemplate.exchange(homeUrl, HttpMethod.GET, entity, Void.class);
-        if (!response.getStatusCode().is2xxSuccessful()) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.USER_AGENT, browserUserAgent());
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<Void> response = restTemplate.exchange(homeUrl, HttpMethod.GET, entity, Void.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                return null;
+            }
+            for (String setCookie : response.getHeaders().get(HttpHeaders.SET_COOKIE)) {
+                Matcher matcher = CSRF_PATTERN.matcher(setCookie);
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+            }
+            return null;
+        } catch (Exception ex) {
+            log.warn("LeetCode: csrf token lookup failed ({}); continuing without CSRF headers", ex.getMessage());
             return null;
         }
-        for (String setCookie : response.getHeaders().get(HttpHeaders.SET_COOKIE)) {
-            Matcher matcher = CSRF_PATTERN.matcher(setCookie);
-            if (matcher.find()) {
-                return matcher.group(1);
-            }
-        }
-        return null;
     }
 
     private String browserUserAgent() {
