@@ -133,8 +133,8 @@ public class PerformanceService {
     public Performance recalculateAndSave(Performance performance) {
         BigDecimal leetcode = scoreFor(performance.getLeetcodeRating(), performance.getLeetcodeSolved(),
                 performance.getLeetcodeEasy(), performance.getLeetcodeMedium(), performance.getLeetcodeHard());
-        BigDecimal codeforces = ratingComponent(performance.getCodeforcesRating());
-        BigDecimal codechef = ratingComponent(performance.getCodechefRating());
+        BigDecimal codeforces = platformComponent(performance.getCodeforcesRating(), performance.getCodeforcesSolved());
+        BigDecimal codechef = platformComponent(performance.getCodechefRating(), performance.getCodechefSolved());
         BigDecimal consistency = consistencyComponent(performance);
         BigDecimal problemSolving = problemSolvingComponent(performance);
 
@@ -175,12 +175,31 @@ public class PerformanceService {
         return BigDecimal.valueOf(Math.min(10.0, (rating / 3500.0) * 10.0)).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Platform component (0–10) for Codeforces/CodeChef. Rated users keep the
+     * rating-based formula; unrated but active users (solved problems, no
+     * contest rating yet) fall back to a solved-based score instead of 0.
+     */
+    private BigDecimal platformComponent(Integer rating, Integer solved) {
+        if (rating != null && rating > 0) {
+            return ratingComponent(rating);
+        }
+        if (solved != null && solved > 0) {
+            return solvedComponent(solved);
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private BigDecimal solvedComponent(Integer solved) {
+        return BigDecimal.valueOf(Math.min(10.0, (solved / 300.0) * 10.0)).setScale(2, RoundingMode.HALF_UP);
+    }
+
     private BigDecimal consistencyComponent(Performance performance) {
         long snapshotCount = performanceHistoryRepository.countByStudentId(performance.getStudent().getId());
         int activePlatforms = 0;
         if (hasActivity(performance.getLeetcodeRating(), performance.getLeetcodeSolved())) activePlatforms++;
-        if (hasActivity(performance.getCodeforcesRating(), null)) activePlatforms++;
-        if (hasActivity(performance.getCodechefRating(), null)) activePlatforms++;
+        if (hasActivity(performance.getCodeforcesRating(), performance.getCodeforcesSolved())) activePlatforms++;
+        if (hasActivity(performance.getCodechefRating(), performance.getCodechefSolved())) activePlatforms++;
 
         double snapshotFactor = Math.min(1.0, snapshotCount / 6.0);
         double platformFactor = Math.min(1.0, activePlatforms / 3.0);
@@ -196,13 +215,20 @@ public class PerformanceService {
     }
 
     /**
-     * Problem Solving component (0–10): rewards volume of problems solved
-     * regardless of contest rating. 300 total problems solved = 10 pts.
+     * Problem Solving component (0–10): rewards total volume of problems
+     * solved across all supported platforms, regardless of contest rating.
+     * 300 total problems solved = 10 pts.
      */
     BigDecimal problemSolvingComponent(Performance performance) {
         int totalSolved = 0;
         if (performance.getLeetcodeSolved() != null) {
             totalSolved += performance.getLeetcodeSolved();
+        }
+        if (performance.getCodeforcesSolved() != null) {
+            totalSolved += performance.getCodeforcesSolved();
+        }
+        if (performance.getCodechefSolved() != null) {
+            totalSolved += performance.getCodechefSolved();
         }
         return BigDecimal.valueOf(Math.min(10.0, (totalSolved / 300.0) * 10.0)).setScale(2, RoundingMode.HALF_UP);
     }

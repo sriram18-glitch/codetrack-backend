@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -87,6 +88,60 @@ class PerformanceServiceTest {
         assertThat(saved.getOverallScore()).isNotNull();
         assertThat(saved.getOverallScore().doubleValue()).isBetween(0.0, 10.0);
         assertThat(saved.getConsistencyScore()).isNotNull();
+    }
+
+    @Test
+    void unratedCodeforcesWithSolvedProblemsGetsNonZeroScore() {
+        Performance performance = Performance.builder()
+                .student(student)
+                .codeforcesSolved(150)
+                .lastUpdated(Instant.now())
+                .build();
+
+        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(1L);
+        when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Performance saved = performanceService.recalculateAndSave(performance);
+
+        assertThat(saved.getOverallScore().doubleValue()).isGreaterThan(0.0);
+    }
+
+    @Test
+    void unratedCodeforcesFallbackOutperformsNoActivity() {
+        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(0L);
+        when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Performance none = Performance.builder().student(student).lastUpdated(Instant.now()).build();
+        Performance withSolved = Performance.builder()
+                .student(student).codeforcesSolved(150).lastUpdated(Instant.now()).build();
+
+        BigDecimal base = performanceService.recalculateAndSave(none).getOverallScore();
+        BigDecimal withSolvedScore = performanceService.recalculateAndSave(withSolved).getOverallScore();
+
+        assertThat(withSolvedScore).isGreaterThan(base);
+    }
+
+    @Test
+    void problemSolvingComponentCountsAllPlatforms() {
+        Performance performance = Performance.builder()
+                .student(student)
+                .leetcodeSolved(100)
+                .codeforcesSolved(50)
+                .codechefSolved(50)
+                .build();
+
+        assertThat(performanceService.problemSolvingComponent(performance))
+                .isEqualByComparingTo(BigDecimal.valueOf(200 / 300.0 * 10.0).setScale(2, RoundingMode.HALF_UP));
+    }
+
+    @Test
+    void problemSolvingComponentIsZeroWhenNoSolvedCounts() {
+        Performance performance = Performance.builder()
+                .student(student)
+                .build();
+
+        assertThat(performanceService.problemSolvingComponent(performance))
+                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
