@@ -78,38 +78,30 @@ public class CodeforcesService {
     }
 
     /**
-     * Counts distinct accepted problems from the user's submission history by
-     * paging through {@code user.status}. Returns null if the call fails and we
-     * have no partial count yet. Capped to avoid runaway requests for very
-     * active users.
+     * Counts distinct accepted problems from the user's submission history via
+     * {@code user.status}. Omitting {@code from}/{@code count} makes Codeforces
+     * return the whole submission history in a single response, which is faster
+     * and lighter than paging and stays well inside the platform's request
+     * budget (and Render's request timeout). Returns null if the call fails.
      */
     private Integer fetchSolvedCount(String handle) {
         Set<String> solved = new HashSet<>();
         try {
-            int from = 1;
-            for (int page = 0; page < 25; page++) {
-                String url = statusUrl + "?handle=" + handle + "&from=" + from + "&count=1000";
-                ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                    break;
+            String url = statusUrl + "?handle=" + handle;
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (!"OK".equals(root.path("status").asText()) || !root.path("result").isArray()) {
+                return null;
+            }
+            for (JsonNode sub : root.path("result")) {
+                if ("OK".equals(sub.path("verdict").asText())) {
+                    String key = sub.path("problem").path("contestId").asText()
+                            + "/" + sub.path("problem").path("index").asText();
+                    solved.add(key);
                 }
-                JsonNode root = objectMapper.readTree(response.getBody());
-                if (!"OK".equals(root.path("status").asText()) || !root.path("result").isArray()) {
-                    break;
-                }
-                JsonNode result = root.path("result");
-                int pageSize = result.size();
-                for (JsonNode sub : result) {
-                    if ("OK".equals(sub.path("verdict").asText())) {
-                        String key = sub.path("problem").path("contestId").asText()
-                                + "/" + sub.path("problem").path("index").asText();
-                        solved.add(key);
-                    }
-                }
-                if (pageSize < 1000) {
-                    break;
-                }
-                from += pageSize;
             }
         } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             log.warn("Codeforces solved count failed for '{}': {}", handle, ex.getMessage());
