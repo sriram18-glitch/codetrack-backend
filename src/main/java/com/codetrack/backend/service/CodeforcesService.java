@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -29,11 +31,14 @@ public class CodeforcesService {
     @Value("${app.platforms.codeforces.rating-url:https://codeforces.com/api/user.rating}")
     private String ratingUrl;
 
+    @Value("${app.platforms.codeforces.status-url:https://codeforces.com/api/user.status}")
+    private String statusUrl;
+
     /**
      * Fetches a Codeforces user's rating/maxRating/rank/contestCount from the public API.
      * Returns empty if the handle does not exist or the API is unreachable. Problems
-     * solved is not exposed by the public API, so it is left null (the UI renders it
-     * as unavailable).
+     * solved is derived from the submissions API (distinct AC problems), so it stays
+     * null only when that call fails.
      */
     public Optional<PlatformData> fetch(String username) {
         if (username == null || username.isBlank()) {
@@ -64,12 +69,52 @@ public class CodeforcesService {
             Integer maxRating = user.path("maxRating").isMissingNode() ? null : user.path("maxRating").asInt();
             String rank = user.path("rank").isMissingNode() ? null : user.path("rank").asText();
 
-            return Optional.of(new PlatformData(PLATFORM, rating, maxRating, rank, null, null, null, null, null,
+            return Optional.of(new PlatformData(PLATFORM, rating, maxRating, rank, fetchSolvedCount(handle), null, null, null, null,
                     fetchContestCount(handle), null));
         } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             log.warn("Codeforces sync failed for '{}': {}", username, ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Counts distinct accepted problems from the user's submission history by
+     * paging through {@code user.status}. Returns null if the call fails and we
+     * have no partial count yet. Capped to avoid runaway requests for very
+     * active users.
+     */
+    private Integer fetchSolvedCount(String handle) {
+        Set<String> solved = new HashSet<>();
+        try {
+            int from = 1;
+            for (int page = 0; page < 25; page++) {
+                String url = statusUrl + "?handle=" + handle + "&from=" + from + "&count=1000";
+                ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    break;
+                }
+                JsonNode root = objectMapper.readTree(response.getBody());
+                if (!"OK".equals(root.path("status").asText()) || !root.path("result").isArray()) {
+                    break;
+                }
+                JsonNode result = root.path("result");
+                int pageSize = result.size();
+                for (JsonNode sub : result) {
+                    if ("OK".equals(sub.path("verdict").asText())) {
+                        String key = sub.path("problem").path("contestId").asText()
+                                + "/" + sub.path("problem").path("index").asText();
+                        solved.add(key);
+                    }
+                }
+                if (pageSize < 1000) {
+                    break;
+                }
+                from += pageSize;
+            }
+        } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
+            log.warn("Codeforces solved count failed for '{}': {}", handle, ex.getMessage());
+        }
+        return solved.isEmpty() ? null : solved.size();
     }
 
     private Integer fetchContestCount(String handle) {

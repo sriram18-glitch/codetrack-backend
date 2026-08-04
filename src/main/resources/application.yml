@@ -42,6 +42,7 @@ app:
   platforms:
     codeforces:
       api-url: ${CODEFORCES_API_URL:https://codeforces.com/api/user.info}
+      status-url: ${CODEFORCES_STATUS_URL:https://codeforces.com/api/user.status}
     leetcode:
       graphql-url: ${LEETCODE_GRAPHQL_URL:https://leetcode.com/graphql}
     codechef:

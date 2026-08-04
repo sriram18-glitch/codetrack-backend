@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,6 +34,8 @@ public class CodeChefService {
 
     private static final Pattern RATING_PATTERN = Pattern.compile("class=\"rating-number\">\\s*(\\d{2,5})");
     private static final Pattern STAR_DIV_PATTERN = Pattern.compile("<div class=\"rating-star\">(.*?)</div>", Pattern.DOTALL);
+    private static final Pattern SOLVED_PATTERN = Pattern.compile(
+            "<h3>\\s*Total Problems Solved:\\s*(\\d+)\\s*</h3>", Pattern.CASE_INSENSITIVE);
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -50,10 +53,38 @@ public class CodeChefService {
         String handle = username.trim();
 
         Optional<PlatformData> viaApi = fetchFromRatingsApi(handle);
-        if (viaApi.isPresent()) {
-            return viaApi;
+        Optional<PlatformData> viaProfile = fetchFromProfilePage(handle);
+        if (viaApi.isEmpty() && viaProfile.isEmpty()) {
+            return Optional.empty();
         }
-        return fetchFromProfilePage(handle);
+
+        PlatformData api = viaApi.orElse(null);
+        PlatformData profile = viaProfile.orElse(null);
+        return Optional.of(new PlatformData(
+                PLATFORM,
+                firstNonNull(PlatformData::rating, api, profile),
+                null,
+                null,
+                firstNonNull(PlatformData::problemsSolved, profile, api),
+                null,
+                null,
+                null,
+                firstNonNull(PlatformData::globalRanking, api, profile),
+                null,
+                firstNonNull(PlatformData::stars, api, profile)
+        ));
+    }
+
+    private static <T> T firstNonNull(Function<PlatformData, T> getter, PlatformData... sources) {
+        for (PlatformData source : sources) {
+            if (source != null) {
+                T value = getter.apply(source);
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+        return null;
     }
 
     private Optional<PlatformData> fetchFromRatingsApi(String handle) {
@@ -110,7 +141,13 @@ public class CodeChefService {
                 }
             }
 
-            return Optional.of(new PlatformData(PLATFORM, rating, null, null, null, null, null, null, null, null, stars));
+            Integer solved = null;
+            Matcher solvedMatcher = SOLVED_PATTERN.matcher(html);
+            if (solvedMatcher.find()) {
+                solved = Integer.parseInt(solvedMatcher.group(1));
+            }
+
+            return Optional.of(new PlatformData(PLATFORM, rating, null, null, solved, null, null, null, null, null, stars));
         } catch (RestClientException | NumberFormatException ex) {
             log.warn("CodeChef profile scrape failed for '{}': {}", handle, ex.getMessage());
             return Optional.empty();
