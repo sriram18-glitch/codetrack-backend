@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -80,7 +81,7 @@ class PerformanceServiceTest {
                 .lastUpdated(Instant.now())
                 .build();
 
-        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(1L);
+        when(performanceHistoryRepository.findByStudentIdOrderByCapturedAtAsc(studentId)).thenReturn(List.of());
         when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         Performance saved = performanceService.recalculateAndSave(performance);
@@ -91,6 +92,57 @@ class PerformanceServiceTest {
     }
 
     @Test
+    void consistencyIsZeroWhenNothingSolved() {
+        Performance performance = Performance.builder()
+                .student(student)
+                .codeforcesRating(1500)
+                .lastUpdated(Instant.now())
+                .build();
+
+        assertThat(performanceService.consistencyComponent(performance))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void consistencyRewardsSolvedVolumeProgressively() {
+        when(performanceHistoryRepository.findByStudentIdOrderByCapturedAtAsc(studentId)).thenReturn(List.of());
+
+        Performance low = Performance.builder().student(student).leetcodeSolved(3).lastUpdated(Instant.now()).build();
+        Performance mid = Performance.builder().student(student).leetcodeSolved(20).lastUpdated(Instant.now()).build();
+        Performance high = Performance.builder().student(student).leetcodeSolved(150).lastUpdated(Instant.now()).build();
+
+        BigDecimal lowScore = performanceService.consistencyComponent(low);
+        BigDecimal midScore = performanceService.consistencyComponent(mid);
+        BigDecimal highScore = performanceService.consistencyComponent(high);
+
+        assertThat(lowScore.doubleValue()).isLessThanOrEqualTo(1.0);
+        assertThat(midScore.doubleValue()).isGreaterThan(lowScore.doubleValue());
+        assertThat(highScore.doubleValue()).isGreaterThan(midScore.doubleValue());
+        assertThat(highScore.doubleValue()).isLessThanOrEqualTo(10.0);
+    }
+
+    @Test
+    void consistencyGrowsWithSnapshotSpanAcrossWeeks() {
+        Instant now = Instant.now();
+        PerformanceHistory w1 = PerformanceHistory.builder().student(student).platform("LEETCODE").problemsSolved(10).capturedAt(now.minus(java.time.Duration.ofDays(50))).build();
+        PerformanceHistory w2 = PerformanceHistory.builder().student(student).platform("LEETCODE").problemsSolved(20).capturedAt(now.minus(java.time.Duration.ofDays(40))).build();
+        PerformanceHistory w3 = PerformanceHistory.builder().student(student).platform("LEETCODE").problemsSolved(30).capturedAt(now.minus(java.time.Duration.ofDays(30))).build();
+        PerformanceHistory w4 = PerformanceHistory.builder().student(student).platform("LEETCODE").problemsSolved(40).capturedAt(now).build();
+
+        Performance performance = Performance.builder().student(student).leetcodeSolved(40).lastUpdated(now).build();
+
+        when(performanceHistoryRepository.findByStudentIdOrderByCapturedAtAsc(studentId))
+                .thenReturn(List.of(w1, w2, w3, w4));
+
+        BigDecimal withSpan = performanceService.consistencyComponent(performance);
+        when(performanceHistoryRepository.findByStudentIdOrderByCapturedAtAsc(studentId)).thenReturn(List.of());
+
+        BigDecimal withoutSpan = performanceService.consistencyComponent(performance);
+
+        assertThat(withSpan).isGreaterThan(withoutSpan);
+    }
+
+    @Test
     void unratedCodeforcesWithSolvedProblemsGetsNonZeroScore() {
         Performance performance = Performance.builder()
                 .student(student)
@@ -98,7 +150,6 @@ class PerformanceServiceTest {
                 .lastUpdated(Instant.now())
                 .build();
 
-        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(1L);
         when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         Performance saved = performanceService.recalculateAndSave(performance);
@@ -108,7 +159,6 @@ class PerformanceServiceTest {
 
     @Test
     void unratedCodeforcesFallbackOutperformsNoActivity() {
-        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(0L);
         when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         Performance none = Performance.builder().student(student).lastUpdated(Instant.now()).build();
@@ -169,7 +219,6 @@ class PerformanceServiceTest {
         when(performanceRepository.findByStudentId(studentId)).thenReturn(Optional.empty());
         when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(performanceHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(1L);
 
         PerformanceResponse response = performanceService.syncPlatform(studentId, PerformanceService.CODEFORCES);
 
@@ -207,7 +256,6 @@ class PerformanceServiceTest {
         when(performanceRepository.findByStudentId(studentId)).thenReturn(Optional.empty());
         when(performanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(performanceHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(performanceHistoryRepository.countByStudentId(studentId)).thenReturn(1L);
 
         SyncAllResult result = performanceService.syncAll(studentId);
 

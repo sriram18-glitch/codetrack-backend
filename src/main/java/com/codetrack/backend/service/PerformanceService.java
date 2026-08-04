@@ -24,9 +24,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -194,24 +198,97 @@ public class PerformanceService {
         return BigDecimal.valueOf(Math.min(10.0, (solved / 300.0) * 10.0)).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal consistencyComponent(Performance performance) {
-        long snapshotCount = performanceHistoryRepository.countByStudentId(performance.getStudent().getId());
-        int activePlatforms = 0;
-        if (hasActivity(performance.getLeetcodeRating(), performance.getLeetcodeSolved())) activePlatforms++;
-        if (hasActivity(performance.getCodeforcesRating(), performance.getCodeforcesSolved())) activePlatforms++;
-        if (hasActivity(performance.getCodechefRating(), performance.getCodechefSolved())) activePlatforms++;
-
-        double snapshotFactor = Math.min(1.0, snapshotCount / 6.0);
-        double platformFactor = Math.min(1.0, activePlatforms / 3.0);
-
-        double recency = 0.25;
-        if (performance.getLastUpdated() != null) {
-            long days = Duration.between(performance.getLastUpdated(), Instant.now()).toDays();
-            recency = days < 7 ? 1.0 : days < 30 ? 0.5 : 0.25;
+    /**
+     * Consistency component (0–10): reflects actual coding practice, not
+     * account connectivity or sync frequency. Students with no solved
+     * problems score 0. The base volume score follows a progressive curve
+     * (a handful of solves rewards very little; sustained volume approaches
+     * the cap), and recency plus the span of snapshots across weeks scale it
+     * up further — but only proportionally to how much real activity exists.
+     */
+    BigDecimal consistencyComponent(Performance performance) {
+        int totalSolved = totalSolved(performance);
+        if (totalSolved <= 0) {
+            return BigDecimal.ZERO;
         }
-
-        double consistency = 10.0 * (0.5 * snapshotFactor + 0.25 * platformFactor + 0.25 * recency);
+        double volume = volumeCurve(totalSolved);
+        double activityRatio = Math.min(1.0, volume / 3.5);
+        double recency = recencyFactor(performance.getLastUpdated());
+        double span = spanFactor(performance.getStudent().getId());
+        double consistency = Math.min(10.0, volume + 3.0 * (0.5 * recency + 0.5 * span) * activityRatio);
         return BigDecimal.valueOf(consistency).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private int totalSolved(Performance performance) {
+        int total = 0;
+        if (performance.getLeetcodeSolved() != null) {
+            total += performance.getLeetcodeSolved();
+        }
+        if (performance.getCodeforcesSolved() != null) {
+            total += performance.getCodeforcesSolved();
+        }
+        if (performance.getCodechefSolved() != null) {
+            total += performance.getCodechefSolved();
+        }
+        return total;
+    }
+
+    /**
+     * Progressive volume curve (0–7): few solves reward little, the mid
+     * range climbs, and it saturates near the top. Breakpoints:
+     * (0,0) (5,0.5) (25,2) (100,5) (300,7).
+     */
+    private double volumeCurve(int solved) {
+        double[] xs = {0, 5, 25, 100, 300};
+        double[] ys = {0, 0.5, 2.0, 5.0, 7.0};
+        if (solved <= xs[0]) {
+            return ys[0];
+        }
+        if (solved >= xs[xs.length - 1]) {
+            return ys[ys.length - 1];
+        }
+        for (int i = 1; i < xs.length; i++) {
+            if (solved <= xs[i]) {
+                double t = (solved - xs[i - 1]) / (xs[i] - xs[i - 1]);
+                return ys[i - 1] + t * (ys[i] - ys[i - 1]);
+            }
+        }
+        return ys[ys.length - 1];
+    }
+
+    private double recencyFactor(Instant lastUpdated) {
+        if (lastUpdated == null) {
+            return 0.0;
+        }
+        long days = Duration.between(lastUpdated, Instant.now()).toDays();
+        if (days < 7) {
+            return 1.0;
+        }
+        if (days < 30) {
+            return 0.6;
+        }
+        if (days < 90) {
+            return 0.3;
+        }
+        return 0.0;
+    }
+
+    /**
+     * Rewards solving across calendar weeks: 8 distinct weeks of snapshots
+     * (roughly two months of sustained activity) reach full span credit.
+     */
+    private double spanFactor(UUID studentId) {
+        List<PerformanceHistory> history = performanceHistoryRepository.findByStudentIdOrderByCapturedAtAsc(studentId);
+        if (history == null || history.isEmpty()) {
+            return 0.0;
+        }
+        Set<Integer> weeks = new HashSet<>();
+        for (PerformanceHistory h : history) {
+            var captured = h.getCapturedAt().atZone(ZoneOffset.UTC);
+            weeks.add(captured.get(WeekFields.ISO.weekBasedYear()) * 100
+                    + captured.get(WeekFields.ISO.weekOfWeekBasedYear()));
+        }
+        return Math.min(1.0, weeks.size() / 8.0);
     }
 
     /**
@@ -220,21 +297,8 @@ public class PerformanceService {
      * 300 total problems solved = 10 pts.
      */
     BigDecimal problemSolvingComponent(Performance performance) {
-        int totalSolved = 0;
-        if (performance.getLeetcodeSolved() != null) {
-            totalSolved += performance.getLeetcodeSolved();
-        }
-        if (performance.getCodeforcesSolved() != null) {
-            totalSolved += performance.getCodeforcesSolved();
-        }
-        if (performance.getCodechefSolved() != null) {
-            totalSolved += performance.getCodechefSolved();
-        }
+        int totalSolved = totalSolved(performance);
         return BigDecimal.valueOf(Math.min(10.0, (totalSolved / 300.0) * 10.0)).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private boolean hasActivity(Integer rating, Integer solved) {
-        return (rating != null && rating > 0) || (solved != null && solved > 0);
     }
 
     // ------------------------------------------------------------------
