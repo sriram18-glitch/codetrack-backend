@@ -11,5 +11,8 @@ public record CreateStudentRequest(
         @Size(max = 100) String branch,
         Integer year,
         @Size(max = 10) String section,
-        @Size(max = 20) String phone
+        @Size(max = 20) String phone,
+        @Size(max = 100) String leetcodeUsername,
+        @Size(max = 100) String codeforcesUsername,
+        @Size(max = 100) String codechefUsername
 ) {}

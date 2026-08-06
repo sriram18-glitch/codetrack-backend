@@ -13,13 +13,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Public self-registration. Validates platform usernames live using the same
  * platform services as the sync flow, then creates the student together with
  * an empty coding profile and an empty performance row in one transaction so
- * the student appears immediately on the admin Students page.
+ * the student appears immediately on the admin Students page. After the create
+ * transaction commits, the registered platforms are synchronized automatically.
  */
 @Slf4j
 @Service
@@ -33,8 +36,9 @@ public class RegistrationService {
     private final CodeforcesService codeforcesService;
     private final CodeChefService codeChefService;
     private final UsernameUniquenessValidator usernameUniquenessValidator;
+    private final PlatformTransactionManager transactionManager;
+    private final AutoSyncService autoSyncService;
 
-    @Transactional
     public RegisterResponse register(RegisterRequest request) {
         String rollNumber = request.rollNumber().trim();
         String email = request.email().trim();
@@ -68,27 +72,38 @@ public class RegistrationService {
         String branch = normalize(request.branch());
         String section = normalize(request.section());
 
-        Student student = Student.builder()
-                .rollNumber(rollNumber)
-                .name(request.name().trim())
-                .email(email)
-                .branch(branch)
-                .year(request.year())
-                .section(section)
-                .phone(trimToNull(request.phone()))
-                .build();
-        student = studentRepository.save(student);
+        Student student = new TransactionTemplate(transactionManager).execute(status -> {
+            Student created = studentRepository.save(Student.builder()
+                    .rollNumber(rollNumber)
+                    .name(request.name().trim())
+                    .email(email)
+                    .branch(branch)
+                    .year(request.year())
+                    .section(section)
+                    .phone(trimToNull(request.phone()))
+                    .build());
 
-        codingProfileRepository.save(CodingProfile.builder()
-                .student(student)
-                .leetcodeUsername(leetcode)
-                .codeforcesUsername(codeforces)
-                .codechefUsername(codechef)
-                .build());
+            codingProfileRepository.save(CodingProfile.builder()
+                    .student(created)
+                    .leetcodeUsername(leetcode)
+                    .codeforcesUsername(codeforces)
+                    .codechefUsername(codechef)
+                    .build());
 
-        performanceRepository.save(Performance.builder().student(student).build());
+            performanceRepository.save(Performance.builder().student(created).build());
+            return created;
+        });
 
         log.info("Student self-registered: id={}, rollNumber={}", student.getId(), student.getRollNumber());
+
+        // Best-effort automatic sync. Runs after the create transaction commits
+        // and never fails the registration.
+        try {
+            autoSyncService.syncStudentBestEffort(student.getId());
+        } catch (Exception ex) {
+            log.warn("Automatic sync after registration failed for {}: {}", student.getRollNumber(), ex.getMessage());
+        }
+
         return new RegisterResponse(student.getId(), student.getRollNumber(), student.getName(),
                 "Registration successful");
     }

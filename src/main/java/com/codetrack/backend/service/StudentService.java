@@ -4,15 +4,19 @@ import com.codetrack.backend.dto.CreateStudentRequest;
 import com.codetrack.backend.dto.StudentResponse;
 import com.codetrack.backend.dto.UpdateStudentRequest;
 import com.codetrack.backend.entity.CodingProfile;
+import com.codetrack.backend.entity.Performance;
 import com.codetrack.backend.entity.Student;
 import com.codetrack.backend.exception.ApiException;
 import com.codetrack.backend.repository.CodingProfileRepository;
+import com.codetrack.backend.repository.PerformanceRepository;
 import com.codetrack.backend.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,9 +28,11 @@ public class StudentService {
 
     private final StudentRepository studentRepository;
     private final CodingProfileRepository codingProfileRepository;
+    private final PerformanceRepository performanceRepository;
     private final UsernameUniquenessValidator usernameUniquenessValidator;
+    private final PlatformTransactionManager transactionManager;
+    private final AutoSyncService autoSyncService;
 
-    @Transactional
     public StudentResponse createStudent(CreateStudentRequest request) {
         if (studentRepository.existsByRollNumberIgnoreCase(request.rollNumber())) {
             throw new ApiException(HttpStatus.CONFLICT, "A student with this roll number already exists");
@@ -35,18 +41,42 @@ public class StudentService {
             throw new ApiException(HttpStatus.CONFLICT, "A student with this email already exists");
         }
 
-        Student student = Student.builder()
-                .rollNumber(request.rollNumber())
-                .name(request.name())
-                .email(request.email())
-                .branch(normalize(request.branch()))
-                .year(request.year())
-                .section(normalize(request.section()))
-                .phone(request.phone())
-                .build();
+        String leetcode = blankToNull(request.leetcodeUsername());
+        String codeforces = blankToNull(request.codeforcesUsername());
+        String codechef = blankToNull(request.codechefUsername());
+        usernameUniquenessValidator.validate(leetcode, codeforces, codechef, null);
 
-        student = studentRepository.save(student);
+        Student student = new TransactionTemplate(transactionManager).execute(status -> {
+            Student created = studentRepository.save(Student.builder()
+                    .rollNumber(request.rollNumber())
+                    .name(request.name())
+                    .email(request.email())
+                    .branch(normalize(request.branch()))
+                    .year(request.year())
+                    .section(normalize(request.section()))
+                    .phone(request.phone())
+                    .build());
+
+            codingProfileRepository.save(CodingProfile.builder()
+                    .student(created)
+                    .leetcodeUsername(leetcode)
+                    .codeforcesUsername(codeforces)
+                    .codechefUsername(codechef)
+                    .build());
+
+            performanceRepository.save(Performance.builder().student(created).build());
+            return created;
+        });
+
         log.info("Student created: id={}, rollNumber={}", student.getId(), student.getRollNumber());
+
+        // Best-effort automatic sync. Runs after the create transaction commits
+        // and never fails the creation.
+        try {
+            autoSyncService.syncStudentBestEffort(student.getId());
+        } catch (Exception ex) {
+            log.warn("Automatic sync after student creation failed for {}: {}", student.getRollNumber(), ex.getMessage());
+        }
 
         return toResponse(student);
     }

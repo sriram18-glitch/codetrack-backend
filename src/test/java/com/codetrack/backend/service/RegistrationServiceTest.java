@@ -18,6 +18,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,6 +41,8 @@ class RegistrationServiceTest {
     @Mock private CodeforcesService codeforcesService;
     @Mock private CodeChefService codeChefService;
     @Mock private UsernameUniquenessValidator usernameUniquenessValidator;
+    @Mock private PlatformTransactionManager platformTransactionManager;
+    @Mock private AutoSyncService autoSyncService;
 
     @Captor private ArgumentCaptor<Student> studentCaptor;
     @Captor private ArgumentCaptor<CodingProfile> profileCaptor;
@@ -50,7 +54,7 @@ class RegistrationServiceTest {
     void setUp() {
         registrationService = new RegistrationService(studentRepository, codingProfileRepository,
                 performanceRepository, leetCodeService, codeforcesService, codeChefService,
-                usernameUniquenessValidator);
+                usernameUniquenessValidator, platformTransactionManager, autoSyncService);
     }
 
     private RegisterRequest validRequest() {
@@ -223,6 +227,37 @@ class RegistrationServiceTest {
         verify(studentRepository).save(studentCaptor.capture());
         assertThat(studentCaptor.getValue().getBranch()).isEqualTo("CSM");
         assertThat(studentCaptor.getValue().getSection()).isEqualTo("C");
+    }
+
+    @Test
+    void successfulRegistrationTriggersAutomaticSync() {
+        when(studentRepository.existsByRollNumberIgnoreCase("21CS001")).thenReturn(false);
+        when(studentRepository.existsByEmailIgnoreCase("priya@college.edu")).thenReturn(false);
+        when(leetCodeService.fetch("priya_lc")).thenReturn(Optional.of(platform("LEETCODE", 1500, 100)));
+        when(codeforcesService.fetch("priya_cf")).thenReturn(Optional.of(platform("CODEFORCES", 1600, 50)));
+        when(codeChefService.fetch("priya_cc")).thenReturn(Optional.of(platform("CODECHEF", 1700, 40)));
+        Student saved = Student.builder().id(UUID.randomUUID()).rollNumber("21CS001").name("Priya Sharma").build();
+        when(studentRepository.save(any(Student.class))).thenReturn(saved);
+
+        registrationService.register(validRequest());
+
+        verify(autoSyncService).syncStudentBestEffort(saved.getId());
+    }
+
+    @Test
+    void registrationStillSucceedsWhenAutomaticSyncThrows() {
+        when(studentRepository.existsByRollNumberIgnoreCase("21CS001")).thenReturn(false);
+        when(studentRepository.existsByEmailIgnoreCase("priya@college.edu")).thenReturn(false);
+        when(leetCodeService.fetch("priya_lc")).thenReturn(Optional.of(platform("LEETCODE", 1500, 100)));
+        when(codeforcesService.fetch("priya_cf")).thenReturn(Optional.of(platform("CODEFORCES", 1600, 50)));
+        when(codeChefService.fetch("priya_cc")).thenReturn(Optional.of(platform("CODECHEF", 1700, 40)));
+        Student saved = Student.builder().id(UUID.randomUUID()).rollNumber("21CS001").name("Priya Sharma").build();
+        when(studentRepository.save(any(Student.class))).thenReturn(saved);
+        doThrow(new RuntimeException("platform down")).when(autoSyncService).syncStudentBestEffort(saved.getId());
+
+        RegisterResponse response = registrationService.register(validRequest());
+
+        assertThat(response.studentId()).isEqualTo(saved.getId());
     }
 
     private PlatformData platform(String platform, int rating, int solved) {
