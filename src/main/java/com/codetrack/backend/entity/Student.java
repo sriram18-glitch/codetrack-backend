@@ -40,7 +40,7 @@ public class Student {
     @Column(length = 10)
     private String section;
 
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private String phone;
 
     @Column(name = "created_at", nullable = false, updatable = false)

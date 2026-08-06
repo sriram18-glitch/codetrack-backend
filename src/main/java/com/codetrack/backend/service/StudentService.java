@@ -54,7 +54,7 @@ public class StudentService {
                     .branch(normalize(request.branch()))
                     .year(request.year())
                     .section(normalize(request.section()))
-                    .phone(request.phone())
+                    .phone(blankToNull(request.phone()))
                     .build());
 
             codingProfileRepository.save(CodingProfile.builder()
@@ -138,7 +138,7 @@ public class StudentService {
         student.setBranch(normalize(request.branch()));
         student.setYear(request.year());
         student.setSection(normalize(request.section()));
-        student.setPhone(request.phone());
+        student.setPhone(blankToNull(request.phone()));
 
         student = studentRepository.save(student);
         Student saved = student;

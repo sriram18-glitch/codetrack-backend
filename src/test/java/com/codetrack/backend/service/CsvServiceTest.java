@@ -72,7 +72,7 @@ class CsvServiceTest {
 
     @Test
     void skipsBlankLinesAndShortRows() {
-        String csv = "21CS001,Ada,ada@example.com\n\n21CS002\n";
+        String csv = "21CS001,Ada,ada@example.com,CSE,3,A,9876543210\n\n21CS002\n";
 
         when(studentRepository.existsByRollNumberIgnoreCase("21CS001")).thenReturn(false);
         when(studentRepository.existsByEmailIgnoreCase("ada@example.com")).thenReturn(false);
@@ -84,6 +84,26 @@ class CsvServiceTest {
         assertThat(result.imported()).isEqualTo(1);
         assertThat(result.failed()).isEqualTo(1);
         assertThat(result.errors().get(0)).contains("at least roll number");
+    }
+
+    @Test
+    void rejectsRowsWithoutPhoneOrWithInvalidPhone() {
+        String csv = "21CS003,Ada,ada@example.com,CSE,3,A,\n"
+                + "21CS004,Bob,bob@example.com,CSE,3,A,12345\n"
+                + "21CS005,Cid,cid@example.com,CSE,3,A,9876543210\n";
+
+        when(studentRepository.existsByRollNumberIgnoreCase(any())).thenReturn(false);
+        when(studentRepository.existsByEmailIgnoreCase(any())).thenReturn(false);
+        when(studentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CsvImportResult result = csvService.importStudents(
+                new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.failed()).isEqualTo(2);
+        assertThat(result.errors()).anyMatch(e -> e.contains("Phone number is required"));
+        assertThat(result.errors()).anyMatch(e -> e.contains("exactly 10 digits"));
+        verify(studentRepository, org.mockito.Mockito.times(1)).save(any());
     }
 
     @Test

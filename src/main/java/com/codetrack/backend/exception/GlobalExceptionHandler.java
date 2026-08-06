@@ -34,7 +34,12 @@ public class GlobalExceptionHandler {
         List<String> details = ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .toList();
-        return build(HttpStatus.BAD_REQUEST, "Validation failed", request, details);
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(org.springframework.validation.FieldError::getDefaultMessage)
+                .filter(m -> m != null)
+                .findFirst()
+                .orElse("Validation failed");
+        return build(HttpStatus.BAD_REQUEST, message, request, details);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

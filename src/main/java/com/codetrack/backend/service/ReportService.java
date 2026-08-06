@@ -69,7 +69,7 @@ public class ReportService {
             document.add(new Paragraph("Roll Number: " + student.getRollNumber()));
             document.add(new Paragraph("Email: " + student.getEmail()));
             document.add(new Paragraph("Branch / Year / Section: "
-                    + nvl(student.getBranch()) + " / " + nvl(student.getYear()) + " / " + nvl(student.getSection())));
+                    + nvl(student.getBranch()) + " / " + romanYear(student.getYear()) + " / " + nvl(student.getSection())));
             document.add(new Paragraph(" "));
 
             document.add(heading("Platform Usernames"));
@@ -337,14 +337,31 @@ public class ReportService {
         if (s.getYear() == null) {
             return s.getSection() == null ? "—" : "—-" + s.getSection();
         }
-        return s.getYear() + (s.getSection() == null ? "" : "-" + s.getSection());
+        return romanYear(s.getYear()) + (s.getSection() == null ? "" : "-" + s.getSection());
     }
 
     private String yearLabel(String year) {
         if (year == null || year.isBlank() || "all".equalsIgnoreCase(year.trim())) {
             return "All Years";
         }
-        return "Year " + year.trim();
+        try {
+            return romanYear(Integer.parseInt(year.trim()));
+        } catch (NumberFormatException ex) {
+            return year.trim();
+        }
+    }
+
+    private String romanYear(Integer year) {
+        if (year == null) {
+            return "—";
+        }
+        return switch (year) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            case 4 -> "IV";
+            default -> String.valueOf(year);
+        };
     }
 
     private String formatNow() {

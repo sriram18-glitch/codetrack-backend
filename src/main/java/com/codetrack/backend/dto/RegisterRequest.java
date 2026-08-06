@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
@@ -23,6 +24,8 @@ public record RegisterRequest(
         Integer year,
         @NotBlank(message = "Section is required")
         @Size(max = 10) String section,
+        @NotBlank(message = "Phone number is required")
+        @Pattern(regexp = "\\d{10}", message = "Phone number must be exactly 10 digits")
         @Size(max = 20) String phone,
         @Size(max = 100) String leetcodeUsername,
         @Size(max = 100) String codeforcesUsername,

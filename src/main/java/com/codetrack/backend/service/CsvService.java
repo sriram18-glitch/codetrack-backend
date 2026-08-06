@@ -123,6 +123,12 @@ public class CsvService {
         if (studentRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException("Email '" + email + "' already exists");
         }
+        if (phone.isEmpty()) {
+            throw new IllegalArgumentException("Phone number is required");
+        }
+        if (!phone.matches("\\d{10}")) {
+            throw new IllegalArgumentException("Phone number must be exactly 10 digits");
+        }
 
         Student student = Student.builder()
                 .rollNumber(rollNumber)
@@ -131,7 +137,7 @@ public class CsvService {
                 .branch(branch.isEmpty() ? null : branch)
                 .year(year)
                 .section(section.isEmpty() ? null : section)
-                .phone(phone.isEmpty() ? null : phone)
+                .phone(phone)
                 .build();
         studentRepository.save(student);
     }

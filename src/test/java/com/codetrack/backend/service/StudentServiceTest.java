@@ -152,4 +152,32 @@ class StudentServiceTest {
         verify(studentRepository, never()).save(any());
         verify(codingProfileRepository, never()).save(any());
     }
+
+    @Test
+    void createStudentTrimsPhone() {
+        CreateStudentRequest req = new CreateStudentRequest(
+                "21CS007", "Ravi", "ravi@college.edu", "CSM", 2, "C", " 9876543210 ",
+                null, null, null);
+        when(studentRepository.save(any(Student.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        studentService.createStudent(req);
+
+        verify(studentRepository).save(studentCaptor.capture());
+        assertThat(studentCaptor.getValue().getPhone()).isEqualTo("9876543210");
+    }
+
+    @Test
+    void updateStudentTrimsPhone() {
+        UUID id = existingStudent().getId();
+        when(studentRepository.findById(id)).thenReturn(Optional.of(existingStudent()));
+        when(studentRepository.save(any(Student.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(codingProfileRepository.findByStudentId(id)).thenReturn(Optional.empty());
+
+        studentService.updateStudent(id, new UpdateStudentRequest(
+                "21CS001", "Priya Sharma", "priya@college.edu", "CSM", 3, "C", " 9123456789 ",
+                null, null, null));
+
+        verify(studentRepository).save(studentCaptor.capture());
+        assertThat(studentCaptor.getValue().getPhone()).isEqualTo("9123456789");
+    }
 }
