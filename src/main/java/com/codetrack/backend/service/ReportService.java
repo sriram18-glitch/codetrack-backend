@@ -93,12 +93,11 @@ public class ReportService {
                 table.addCell(cell("Metric", true));
                 table.addCell(cell("Value", true));
                 table.addCell(cell("Notes", true));
-                addRow(table, "LeetCode Rating", performance.getLeetcodeRating(), "Contest rating");
                 addRow(table, "LeetCode Solved", performance.getLeetcodeSolved(),
                         "E/M/H = " + nvl(performance.getLeetcodeEasy()) + "/" + nvl(performance.getLeetcodeMedium())
                                 + "/" + nvl(performance.getLeetcodeHard()));
-                addRow(table, "Codeforces Rating", performance.getCodeforcesRating(), "Current rating");
-                addRow(table, "CodeChef Rating", performance.getCodechefRating(), "Current rating");
+                addRow(table, "Codeforces Solved", performance.getCodeforcesSolved(), "Problems solved");
+                addRow(table, "CodeChef Solved", performance.getCodechefSolved(), "Problems solved");
                 document.add(table);
             }
 
@@ -180,7 +179,8 @@ public class ReportService {
                     table.addCell(cell(nvl(p.getOverallScore()), false));
                     table.addCell(cell(nvl(p.getConsistencyScore()), false));
                     table.addCell(cell(nvl(p.getLeetcodeSolved()), false));
-                    table.addCell(cell(nvl(p.getCodechefRating()), false));
+                    table.addCell(cell(nvl(p.getCodeforcesSolved()), false));
+                    table.addCell(cell(nvl(p.getCodechefSolved()), false));
                 }
                 document.add(table);
             }
@@ -225,8 +225,8 @@ public class ReportService {
                     table.addCell(cell(nvl(p.getOverallScore()), false));
                     table.addCell(cell(nvl(p.getConsistencyScore()), false));
                     table.addCell(cell(nvl(p.getLeetcodeSolved()), false));
-                    table.addCell(cell(nvl(p.getCodeforcesRating()), false));
-                    table.addCell(cell(nvl(p.getCodechefRating()), false));
+                    table.addCell(cell(nvl(p.getCodeforcesSolved()), false));
+                    table.addCell(cell(nvl(p.getCodechefSolved()), false));
                 }
                 document.add(table);
             }
@@ -277,27 +277,31 @@ public class ReportService {
             if (students.isEmpty()) {
                 document.add(new Paragraph("No students found for this selection."));
             } else {
-                PdfPTable table = new PdfPTable(7);
+                PdfPTable table = new PdfPTable(10);
                 table.setWidthPercentage(100);
                 table.setSpacingBefore(6);
                 table.setHeaderRows(1);
-                for (String h : new String[]{"S.No", "Roll No", "Name", "Year & Section",
-                        "Total Problems Solved", "Consistency (/10)", "Overall Score (/10)"}) {
+                for (String h : new String[]{"S.No", "Roll No", "Name", "Year & Section", "LC Solved",
+                        "CF Solved", "CC Solved", "Total Problems Solved", "Consistency (/10)", "Overall Score (/10)"}) {
                     table.addCell(cell(h, true));
                 }
                 int serial = 1;
                 for (Student s : students) {
                     Performance p = performanceRepository.findByStudentId(s.getId()).orElse(null);
+                    Integer lc = p == null ? null : p.getLeetcodeSolved();
+                    Integer cf = p == null ? null : p.getCodeforcesSolved();
+                    Integer cc = p == null ? null : p.getCodechefSolved();
                     int totalSolved = 0;
-                    if (p != null) {
-                        if (p.getLeetcodeSolved() != null) totalSolved += p.getLeetcodeSolved();
-                        if (p.getCodeforcesSolved() != null) totalSolved += p.getCodeforcesSolved();
-                        if (p.getCodechefSolved() != null) totalSolved += p.getCodechefSolved();
-                    }
+                    if (lc != null) totalSolved += lc;
+                    if (cf != null) totalSolved += cf;
+                    if (cc != null) totalSolved += cc;
                     table.addCell(cell(String.valueOf(serial++), false));
                     table.addCell(cell(s.getRollNumber(), false));
                     table.addCell(cell(s.getName(), false));
                     table.addCell(cell(yearSection(s), false));
+                    table.addCell(cell(lc == null ? "—" : String.valueOf(lc), false));
+                    table.addCell(cell(cf == null ? "—" : String.valueOf(cf), false));
+                    table.addCell(cell(cc == null ? "—" : String.valueOf(cc), false));
                     table.addCell(cell(p == null ? "—" : String.valueOf(totalSolved), false));
                     table.addCell(cell(p == null || p.getConsistencyScore() == null
                             ? "—" : String.valueOf(p.getConsistencyScore()), false));
