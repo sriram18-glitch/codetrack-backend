@@ -24,6 +24,7 @@ public class StudentService {
 
     private final StudentRepository studentRepository;
     private final CodingProfileRepository codingProfileRepository;
+    private final UsernameUniquenessValidator usernameUniquenessValidator;
 
     @Transactional
     public StudentResponse createStudent(CreateStudentRequest request) {
@@ -38,9 +39,9 @@ public class StudentService {
                 .rollNumber(request.rollNumber())
                 .name(request.name())
                 .email(request.email())
-                .branch(request.branch())
+                .branch(normalize(request.branch()))
                 .year(request.year())
-                .section(request.section())
+                .section(normalize(request.section()))
                 .phone(request.phone())
                 .build();
 
@@ -96,12 +97,17 @@ public class StudentService {
             throw new ApiException(HttpStatus.CONFLICT, "A student with this email already exists");
         }
 
+        String leetcode = blankToNull(request.leetcodeUsername());
+        String codeforces = blankToNull(request.codeforcesUsername());
+        String codechef = blankToNull(request.codechefUsername());
+        usernameUniquenessValidator.validate(leetcode, codeforces, codechef, student.getId());
+
         student.setRollNumber(request.rollNumber());
         student.setName(request.name());
         student.setEmail(request.email());
-        student.setBranch(request.branch());
+        student.setBranch(normalize(request.branch()));
         student.setYear(request.year());
-        student.setSection(request.section());
+        student.setSection(normalize(request.section()));
         student.setPhone(request.phone());
 
         student = studentRepository.save(student);
@@ -109,9 +115,9 @@ public class StudentService {
 
         CodingProfile profile = codingProfileRepository.findByStudentId(id)
                 .orElseGet(() -> CodingProfile.builder().student(saved).build());
-        profile.setLeetcodeUsername(blankToNull(request.leetcodeUsername()));
-        profile.setCodeforcesUsername(blankToNull(request.codeforcesUsername()));
-        profile.setCodechefUsername(blankToNull(request.codechefUsername()));
+        profile.setLeetcodeUsername(leetcode);
+        profile.setCodeforcesUsername(codeforces);
+        profile.setCodechefUsername(codechef);
         codingProfileRepository.save(profile);
 
         log.info("Student updated: id={}, rollNumber={}", student.getId(), student.getRollNumber());
@@ -133,6 +139,11 @@ public class StudentService {
 
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    private String normalize(String value) {
+        String trimmed = blankToNull(value);
+        return trimmed == null ? null : trimmed.toUpperCase();
     }
 
     private StudentResponse toResponse(Student student) {

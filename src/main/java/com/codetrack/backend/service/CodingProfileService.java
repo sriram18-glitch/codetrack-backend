@@ -22,6 +22,7 @@ public class CodingProfileService {
 
     private final CodingProfileRepository codingProfileRepository;
     private final StudentRepository studentRepository;
+    private final UsernameUniquenessValidator usernameUniquenessValidator;
 
     @Transactional
     public CodingProfileResponse upsertProfile(UUID studentId, CodingProfileRequest request) {
@@ -31,9 +32,14 @@ public class CodingProfileService {
         CodingProfile profile = codingProfileRepository.findByStudentId(studentId)
                 .orElseGet(() -> CodingProfile.builder().student(student).build());
 
-        profile.setLeetcodeUsername(blankToNull(request.leetcodeUsername()));
-        profile.setCodeforcesUsername(blankToNull(request.codeforcesUsername()));
-        profile.setCodechefUsername(blankToNull(request.codechefUsername()));
+        String leetcode = blankToNull(request.leetcodeUsername());
+        String codeforces = blankToNull(request.codeforcesUsername());
+        String codechef = blankToNull(request.codechefUsername());
+        usernameUniquenessValidator.validate(leetcode, codeforces, codechef, studentId);
+
+        profile.setLeetcodeUsername(leetcode);
+        profile.setCodeforcesUsername(codeforces);
+        profile.setCodechefUsername(codechef);
 
         profile = codingProfileRepository.save(profile);
         log.info("Coding profile saved for student id={}", studentId);

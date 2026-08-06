@@ -32,6 +32,7 @@ public class RegistrationService {
     private final LeetCodeService leetCodeService;
     private final CodeforcesService codeforcesService;
     private final CodeChefService codeChefService;
+    private final UsernameUniquenessValidator usernameUniquenessValidator;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -62,13 +63,18 @@ public class RegistrationService {
                     "CodeChef username '" + codechef + "' does not exist");
         }
 
+        usernameUniquenessValidator.validate(leetcode, codeforces, codechef, null);
+
+        String branch = normalize(request.branch());
+        String section = normalize(request.section());
+
         Student student = Student.builder()
                 .rollNumber(rollNumber)
                 .name(request.name().trim())
                 .email(email)
-                .branch(request.branch().trim())
+                .branch(branch)
                 .year(request.year())
-                .section(request.section().trim())
+                .section(section)
                 .phone(trimToNull(request.phone()))
                 .build();
         student = studentRepository.save(student);
@@ -103,5 +109,10 @@ public class RegistrationService {
 
     private String trimToNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    private String normalize(String value) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? null : trimmed.toUpperCase();
     }
 }

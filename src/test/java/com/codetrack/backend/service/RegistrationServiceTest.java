@@ -38,6 +38,7 @@ class RegistrationServiceTest {
     @Mock private LeetCodeService leetCodeService;
     @Mock private CodeforcesService codeforcesService;
     @Mock private CodeChefService codeChefService;
+    @Mock private UsernameUniquenessValidator usernameUniquenessValidator;
 
     @Captor private ArgumentCaptor<Student> studentCaptor;
     @Captor private ArgumentCaptor<CodingProfile> profileCaptor;
@@ -48,7 +49,8 @@ class RegistrationServiceTest {
     @BeforeEach
     void setUp() {
         registrationService = new RegistrationService(studentRepository, codingProfileRepository,
-                performanceRepository, leetCodeService, codeforcesService, codeChefService);
+                performanceRepository, leetCodeService, codeforcesService, codeChefService,
+                usernameUniquenessValidator);
     }
 
     private RegisterRequest validRequest() {
@@ -186,6 +188,41 @@ class RegistrationServiceTest {
         when(leetCodeService.fetch("does_not_exist_xyz")).thenReturn(Optional.empty());
 
         assertThat(registrationService.validateUsername("leetcode", "does_not_exist_xyz")).isFalse();
+    }
+
+    @Test
+    void alreadyRegisteredUsernameIsRejected() {
+        when(studentRepository.existsByRollNumberIgnoreCase("21CS001")).thenReturn(false);
+        when(studentRepository.existsByEmailIgnoreCase("priya@college.edu")).thenReturn(false);
+        when(leetCodeService.fetch("priya_lc")).thenReturn(Optional.of(platform("LEETCODE", 1500, 100)));
+        when(codeforcesService.fetch("priya_cf")).thenReturn(Optional.of(platform("CODEFORCES", 1600, 50)));
+        when(codeChefService.fetch("priya_cc")).thenReturn(Optional.of(platform("CODECHEF", 1700, 40)));
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.CONFLICT, "This LeetCode username is already registered."))
+                .when(usernameUniquenessValidator).validate("priya_lc", "priya_cf", "priya_cc", null);
+
+        assertThatThrownBy(() -> registrationService.register(validRequest()))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> assertThat(((ApiException) ex).getStatus()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("already registered");
+
+        verify(studentRepository, never()).save(any());
+    }
+
+    @Test
+    void branchAndSectionAreNormalizedToUpperCase() {
+        RegisterRequest request = new RegisterRequest("21CS003", "Neha", "neha@college.edu",
+                "csm", 2, "c", null, null, null, null);
+
+        when(studentRepository.existsByRollNumberIgnoreCase("21CS003")).thenReturn(false);
+        when(studentRepository.existsByEmailIgnoreCase("neha@college.edu")).thenReturn(false);
+        Student saved = Student.builder().id(UUID.randomUUID()).build();
+        when(studentRepository.save(any(Student.class))).thenReturn(saved);
+
+        registrationService.register(request);
+
+        verify(studentRepository).save(studentCaptor.capture());
+        assertThat(studentCaptor.getValue().getBranch()).isEqualTo("CSM");
+        assertThat(studentCaptor.getValue().getSection()).isEqualTo("C");
     }
 
     private PlatformData platform(String platform, int rating, int solved) {
