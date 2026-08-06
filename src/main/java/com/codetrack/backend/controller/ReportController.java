@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -40,6 +41,18 @@ public class ReportController {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDisposition(ContentDisposition.attachment().filename("college-report.pdf").build());
+        return ResponseEntity.ok().headers(headers).body(pdf);
+    }
+
+    @GetMapping(value = "/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download a PDF year-wise report (all years or a specific year)")
+    public ResponseEntity<byte[]> yearReport(
+            @RequestParam(value = "year", required = false, defaultValue = "all") String year) {
+        byte[] pdf = reportService.generateYearReport(year);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(
+                ContentDisposition.attachment().filename("year-report-" + year + ".pdf").build());
         return ResponseEntity.ok().headers(headers).body(pdf);
     }
 
