@@ -59,6 +59,30 @@ class AnalyticsServiceTest {
     }
 
     @Test
+    void leaderboardBreaksTiesByTotalSolvedThenRollNumber() {
+        Performance a = performance(top, new BigDecimal("8.00"));
+        a.setLeetcodeSolved(20);
+        a.setCodeforcesSolved(10);
+        Performance b = performance(mid, new BigDecimal("8.00"));
+        b.setLeetcodeSolved(40);
+        Performance c = performance(idle, new BigDecimal("8.00"));
+        c.setLeetcodeSolved(40);
+
+        when(performanceRepository.findAll()).thenReturn(List.of(b, a, c));
+
+        List<LeaderboardEntry> leaderboard = analyticsService.leaderboard();
+
+        // Equal scores: 40 solved (b, c) ranks above 30 solved (a); b/c tie-break by roll asc.
+        assertThat(leaderboard).hasSize(3);
+        assertThat(leaderboard.get(0).rollNumber()).isEqualTo("2");
+        assertThat(leaderboard.get(0).totalSolved()).isEqualTo(40);
+        assertThat(leaderboard.get(1).rollNumber()).isEqualTo("3");
+        assertThat(leaderboard.get(1).totalSolved()).isEqualTo(40);
+        assertThat(leaderboard.get(2).rollNumber()).isEqualTo("1");
+        assertThat(leaderboard.get(2).totalSolved()).isEqualTo(30);
+    }
+
+    @Test
     void atRiskFlagsNeverSyncedAndLowScores() {
         Performance pTop = performance(top, new BigDecimal("8.50"));
         Performance pLow = performance(mid, new BigDecimal("2.10"));

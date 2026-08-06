@@ -8,6 +8,7 @@ import com.codetrack.backend.entity.Performance;
 import com.codetrack.backend.entity.Student;
 import com.codetrack.backend.repository.PerformanceRepository;
 import com.codetrack.backend.repository.StudentRepository;
+import com.codetrack.backend.util.PerformanceSort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,8 +78,8 @@ public class AnalyticsService {
     public List<LeaderboardEntry> leaderboard() {
         List<LeaderboardEntry> entries = performanceRepository.findAll().stream()
                 .filter(p -> p.getOverallScore() != null)
+                .sorted(PerformanceSort.performanceOrder())
                 .map(p -> toLeaderboardEntry(p, 0))
-                .sorted(Comparator.comparing(LeaderboardEntry::overallScore).reversed())
                 .toList();
 
         List<LeaderboardEntry> ranked = new ArrayList<>();
@@ -95,7 +96,8 @@ public class AnalyticsService {
                     entries.get(i).consistencyScore(),
                     entries.get(i).leetcodeSolved(),
                     entries.get(i).codeforcesRating(),
-                    entries.get(i).codechefRating()
+                    entries.get(i).codechefRating(),
+                    entries.get(i).totalSolved()
             ));
         }
         return ranked;
@@ -194,7 +196,8 @@ public class AnalyticsService {
                 p.getConsistencyScore(),
                 p.getLeetcodeSolved(),
                 p.getCodeforcesRating(),
-                p.getCodechefRating()
+                p.getCodechefRating(),
+                PerformanceSort.totalSolved(p)
         );
     }
 }

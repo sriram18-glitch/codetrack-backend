@@ -7,6 +7,7 @@ import com.codetrack.backend.exception.ApiException;
 import com.codetrack.backend.repository.CodingProfileRepository;
 import com.codetrack.backend.repository.PerformanceRepository;
 import com.codetrack.backend.repository.StudentRepository;
+import com.codetrack.backend.util.PerformanceSort;
 import com.lowagie.text.Document;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
@@ -33,8 +34,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -159,7 +162,7 @@ public class ReportService {
             document.add(new Paragraph(" "));
 
             List<Performance> sorted = scored.stream()
-                    .sorted(Comparator.comparing(Performance::getOverallScore).reversed())
+                    .sorted(PerformanceSort.performanceOrder())
                     .toList();
             if (sorted.isEmpty()) {
                 document.add(new Paragraph("No scored students yet — run syncs to populate the report."));
@@ -196,8 +199,7 @@ public class ReportService {
     public byte[] generateBranchReport(String branch) {
         List<Performance> all = performanceRepository.findAll().stream()
                 .filter(p -> p.getStudent().getBranch() != null && p.getStudent().getBranch().equalsIgnoreCase(branch))
-                .sorted(Comparator.comparing(Performance::getOverallScore,
-                        Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .sorted(PerformanceSort.performanceOrder())
                 .toList();
 
         Document document = new Document();
@@ -244,10 +246,11 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public byte[] generateYearReport(String year) {
+        Map<UUID, Performance> performanceByStudent = performanceRepository.findAll().stream()
+                .collect(Collectors.toMap(p -> p.getStudent().getId(), Function.identity()));
         List<Student> students = studentRepository.findAll().stream()
                 .filter(s -> matchesYear(s, year))
-                .sorted(Comparator.comparingInt((Student s) -> s.getYear() == null ? Integer.MAX_VALUE : s.getYear())
-                        .thenComparing(Student::getRollNumber))
+                .sorted(PerformanceSort.performanceOrderByStudent(performanceByStudent))
                 .toList();
 
         Document document = new Document();

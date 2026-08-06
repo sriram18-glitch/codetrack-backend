@@ -15,5 +15,6 @@ public record LeaderboardEntry(
         BigDecimal consistencyScore,
         Integer leetcodeSolved,
         Integer codeforcesRating,
-        Integer codechefRating
+        Integer codechefRating,
+        Integer totalSolved
 ) {}
