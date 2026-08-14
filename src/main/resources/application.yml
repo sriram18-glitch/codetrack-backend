@@ -57,6 +57,10 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
+codetrack:
+  sync:
+    request-delay-ms: ${CODETRACK_SYNC_REQUEST_DELAY_MS:1000}
+
 logging:
   level:
     root: INFO

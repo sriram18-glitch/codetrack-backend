@@ -72,6 +72,37 @@ public class AutoSyncService {
         return new StudentSyncSummary(attempted, succeeded, failed);
     }
 
+    /**
+     * Synchronizes a single platform for one student, reusing
+     * {@link PerformanceService#syncPlatform}. Students without a username for
+     * the platform are skipped (never called). Never throws: failures are
+     * caught, logged and counted so the rest of a bulk run continues.
+     */
+    public StudentSyncSummary syncPlatformBestEffort(UUID studentId, String platform) {
+        Student student = studentRepository.findById(studentId).orElse(null);
+        if (student == null) {
+            return new StudentSyncSummary(0, 0, 0);
+        }
+        CodingProfile profile = codingProfileRepository.findByStudentId(studentId).orElse(null);
+        if (profile == null) {
+            return new StudentSyncSummary(0, 0, 0);
+        }
+        String username = usernameFor(profile, platform);
+        if (username == null || username.isBlank()) {
+            log.info("Student: {} — no {} handle, skipped", student.getName(), displayName(platform));
+            return new StudentSyncSummary(0, 0, 0);
+        }
+        try {
+            performanceService.syncPlatform(studentId, platform);
+            log.info("Student: {} ({}) — {} ✓", student.getName(), student.getRollNumber(), displayName(platform));
+            return new StudentSyncSummary(1, 1, 0);
+        } catch (Exception ex) {
+            log.warn("Student: {} ({}) — {} ✕ ({}). Retry later with manual Sync.",
+                    student.getName(), student.getRollNumber(), displayName(platform), ex.getMessage());
+            return new StudentSyncSummary(1, 0, 1);
+        }
+    }
+
     private String usernameFor(CodingProfile profile, String platform) {
         return switch (platform) {
             case PerformanceService.LEETCODE -> profile.getLeetcodeUsername();

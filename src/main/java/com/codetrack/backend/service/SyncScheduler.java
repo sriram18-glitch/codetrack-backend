@@ -7,20 +7,24 @@ import org.springframework.stereotype.Component;
 
 /**
  * Background daily synchronization. Every day at 09:00 (server local time)
- * every student that has a coding profile is re-synced through the shared
- * {@link DailySyncService}. A single student's failure is logged and
- * processing continues with the next student, so the scheduled run always
- * completes. The same logic is reused by the external cron-trigger endpoint.
+ * every student is re-synced through the shared {@link BulkSyncService}). The
+ * scheduled run only fires while the JVM is awake; it is a fallback on top of
+ * the external cron-trigger endpoint. If another bulk run is already in
+ * progress the duplicate trigger is skipped and logged.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SyncScheduler {
 
-    private final DailySyncService dailySyncService;
+    private final BulkSyncService bulkSyncService;
 
     @Scheduled(cron = "${codetrack.sync.cron:0 0 9 * * *}")
     public void automaticDailySync() {
-        dailySyncService.runDailySync(DailySyncService.SOURCE_AUTOMATIC);
+        try {
+            bulkSyncService.submit(BulkSyncService.ALL, BulkSyncService.SOURCE_AUTOMATIC);
+        } catch (Exception ex) {
+            log.info("Automatic daily sync skipped — a synchronization is already running");
+        }
     }
 }

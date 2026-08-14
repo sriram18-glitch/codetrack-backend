@@ -1,8 +1,8 @@
 package com.codetrack.backend.controller;
 
-import com.codetrack.backend.dto.DailySyncResult;
+import com.codetrack.backend.dto.SyncStatus;
 import com.codetrack.backend.exception.ApiException;
-import com.codetrack.backend.service.DailySyncService;
+import com.codetrack.backend.service.BulkSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,8 @@ import java.security.MessageDigest;
  * JWT flow and are instead protected by a shared secret supplied through the
  * {@code X-Sync-Secret} request header. The secret is read only from the
  * {@code CODETRACK_SYNC_SECRET} environment variable and is never logged,
- * stored, or returned to clients.
+ * stored, or returned to clients. The same {@link BulkSyncService} engine is
+ * used as for the admin buttons and the scheduled job.
  */
 @RestController
 @RequestMapping("/api/internal")
@@ -32,21 +33,21 @@ public class InternalSyncController {
 
     public static final String SYNC_SECRET_HEADER = "X-Sync-Secret";
 
-    private final DailySyncService dailySyncService;
+    private final BulkSyncService bulkSyncService;
 
     @Value("${codetrack.sync.secret:}")
     private String syncSecret;
 
     @PostMapping("/sync/daily")
     @Operation(summary = "Trigger the daily synchronization from an external cron. " +
-            "Requires the X-Sync-Secret header. Returns success/failed/total counts.")
-    public ResponseEntity<DailySyncResult> triggerDailySync(
+            "Requires the X-Sync-Secret header. Returns immediately with a 202 + status.")
+    public ResponseEntity<SyncStatus> triggerDailySync(
             @RequestHeader(value = SYNC_SECRET_HEADER, required = false) String providedSecret) {
         if (!isValidSecret(providedSecret)) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid or missing " + SYNC_SECRET_HEADER);
         }
-        DailySyncResult result = dailySyncService.runDailySync(DailySyncService.SOURCE_EXTERNAL);
-        return ResponseEntity.ok(result);
+        SyncStatus started = bulkSyncService.submit(BulkSyncService.ALL, BulkSyncService.SOURCE_EXTERNAL);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(started);
     }
 
     private boolean isValidSecret(String providedSecret) {

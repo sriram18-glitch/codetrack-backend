@@ -1,8 +1,8 @@
 package com.codetrack.backend.controller;
 
-import com.codetrack.backend.dto.DailySyncResult;
+import com.codetrack.backend.dto.SyncStatus;
 import com.codetrack.backend.exception.GlobalExceptionHandler;
-import com.codetrack.backend.service.DailySyncService;
+import com.codetrack.backend.service.BulkSyncService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,6 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.time.Instant;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -24,13 +26,13 @@ class InternalSyncControllerTest {
 
     private static final String SECRET = "test-sync-secret";
 
-    @Mock private DailySyncService dailySyncService;
+    @Mock private BulkSyncService bulkSyncService;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        InternalSyncController controller = new InternalSyncController(dailySyncService);
+        InternalSyncController controller = new InternalSyncController(bulkSyncService);
         ReflectionTestUtils.setField(controller, "syncSecret", SECRET);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -38,18 +40,17 @@ class InternalSyncControllerTest {
     }
 
     @Test
-    void validSecretStartsSync() throws Exception {
-        when(dailySyncService.runDailySync(DailySyncService.SOURCE_EXTERNAL))
-                .thenReturn(new DailySyncResult(3, 1, 4, false));
+    void validSecretStartsBulkSync() throws Exception {
+        SyncStatus running = new SyncStatus(SyncStatus.RUNNING, BulkSyncService.ALL,
+                0, 0, 0, 0, 0, Instant.now(), null, null);
+        when(bulkSyncService.submit(BulkSyncService.ALL, BulkSyncService.SOURCE_EXTERNAL)).thenReturn(running);
 
         mockMvc.perform(post("/api/internal/sync/daily").header("X-Sync-Secret", SECRET))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(3))
-                .andExpect(jsonPath("$.failed").value(1))
-                .andExpect(jsonPath("$.total").value(4))
-                .andExpect(jsonPath("$.skipped").value(false));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("RUNNING"))
+                .andExpect(jsonPath("$.platform").value("ALL"));
 
-        verify(dailySyncService).runDailySync(DailySyncService.SOURCE_EXTERNAL);
+        verify(bulkSyncService).submit(BulkSyncService.ALL, BulkSyncService.SOURCE_EXTERNAL);
     }
 
     @Test
@@ -57,7 +58,7 @@ class InternalSyncControllerTest {
         mockMvc.perform(post("/api/internal/sync/daily").header("X-Sync-Secret", "wrong-secret"))
                 .andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(dailySyncService);
+        verifyNoInteractions(bulkSyncService);
     }
 
     @Test
@@ -65,12 +66,12 @@ class InternalSyncControllerTest {
         mockMvc.perform(post("/api/internal/sync/daily"))
                 .andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(dailySyncService);
+        verifyNoInteractions(bulkSyncService);
     }
 
     @Test
     void rejectsWhenSecretNotConfigured() throws Exception {
-        InternalSyncController unconfigured = new InternalSyncController(dailySyncService);
+        InternalSyncController unconfigured = new InternalSyncController(bulkSyncService);
         ReflectionTestUtils.setField(unconfigured, "syncSecret", "");
         MockMvc unconfiguredMvc = MockMvcBuilders.standaloneSetup(unconfigured)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -79,6 +80,6 @@ class InternalSyncControllerTest {
         unconfiguredMvc.perform(post("/api/internal/sync/daily").header("X-Sync-Secret", SECRET))
                 .andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(dailySyncService);
+        verifyNoInteractions(bulkSyncService);
     }
 }
