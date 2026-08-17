@@ -12,5 +12,7 @@ public record StudentResponse(
         Integer year,
         String section,
         String phone,
+        String githubProfileUrl,
+        String linkedinProfileUrl,
         Instant createdAt
 ) {}

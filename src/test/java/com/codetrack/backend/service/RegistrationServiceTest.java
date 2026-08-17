@@ -59,7 +59,9 @@ class RegistrationServiceTest {
 
     private RegisterRequest validRequest() {
         return new RegisterRequest("21CS001", "Priya Sharma", "priya@college.edu",
-                "CSE", 3, "A", "9999999999", "priya_lc", "priya_cf", "priya_cc");
+                "CSE", 3, "A", "9999999999",
+                "https://github.com/priya", "https://www.linkedin.com/in/priya",
+                "priya_lc", "priya_cf", "priya_cc");
     }
 
     @Test
@@ -160,7 +162,7 @@ class RegistrationServiceTest {
     @Test
     void blankUsernamesAreStoredAsNullWithoutValidation() {
         RegisterRequest request = new RegisterRequest("21CS002", "Ravi", "ravi@college.edu",
-                "ECE", 2, "B", null, "  ", "", null);
+                "ECE", 2, "B", null, null, null, "  ", "", null);
 
         when(studentRepository.existsByRollNumberIgnoreCase("21CS002")).thenReturn(false);
         when(studentRepository.existsByEmailIgnoreCase("ravi@college.edu")).thenReturn(false);
@@ -215,7 +217,7 @@ class RegistrationServiceTest {
     @Test
     void branchAndSectionAreNormalizedToUpperCase() {
         RegisterRequest request = new RegisterRequest("21CS003", "Neha", "neha@college.edu",
-                "csm", 2, "c", null, null, null, null);
+                "csm", 2, "c", null, null, null, null, null, null);
 
         when(studentRepository.existsByRollNumberIgnoreCase("21CS003")).thenReturn(false);
         when(studentRepository.existsByEmailIgnoreCase("neha@college.edu")).thenReturn(false);

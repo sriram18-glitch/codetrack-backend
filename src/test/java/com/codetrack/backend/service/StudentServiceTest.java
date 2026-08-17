@@ -65,7 +65,7 @@ class StudentServiceTest {
 
     private UpdateStudentRequest request(String branch, String section) {
         return new UpdateStudentRequest("21CS001", "Priya Sharma", "priya@college.edu",
-                branch, 3, section, "9999999999", "priya_lc", null, null);
+                branch, 3, section, "9999999999", null, null, "priya_lc", null, null);
     }
 
     @Test
@@ -75,7 +75,7 @@ class StudentServiceTest {
                 .when(usernameUniquenessValidator).validate("priya_lc", "tourist", null, existingStudent().getId());
 
         UpdateStudentRequest req = new UpdateStudentRequest("21CS001", "Priya Sharma", "priya@college.edu",
-                "CSE", 3, "A", "9999999999", "priya_lc", "tourist", null);
+                "CSE", 3, "A", "9999999999", null, null, "priya_lc", "tourist", null);
 
         assertThatThrownBy(() -> studentService.updateStudent(existingStudent().getId(), req))
                 .isInstanceOf(ApiException.class)
@@ -107,7 +107,7 @@ class StudentServiceTest {
     @Test
     void createStudentNormalizesBranchAndSectionAndPersistsProfileAndPerformance() {
         CreateStudentRequest req = new CreateStudentRequest(
-                "21CS004", "Ravi", "ravi@college.edu", "csm", 2, "c", null,
+                "21CS004", "Ravi", "ravi@college.edu", "csm", 2, "c", null, null, null,
                 "ravi_lc", null, "ravi_cc");
         when(studentRepository.save(any(Student.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -129,7 +129,7 @@ class StudentServiceTest {
     @Test
     void createStudentTriggersAutomaticSync() {
         CreateStudentRequest req = new CreateStudentRequest(
-                "21CS005", "Ravi", "ravi@college.edu", "CSM", 2, "C", null, null, null, null);
+                "21CS005", "Ravi", "ravi@college.edu", "CSM", 2, "C", null, null, null, null, null, null);
         Student saved = Student.builder().id(UUID.randomUUID()).rollNumber("21CS005").build();
         when(studentRepository.save(any(Student.class))).thenReturn(saved);
 
@@ -141,7 +141,7 @@ class StudentServiceTest {
     @Test
     void createStudentRejectsUsernameOwnedByAnotherStudent() {
         CreateStudentRequest req = new CreateStudentRequest(
-                "21CS006", "Ravi", "ravi@college.edu", "CSM", 2, "C", null, "sriram_9167", null, null);
+                "21CS006", "Ravi", "ravi@college.edu", "CSM", 2, "C", null, null, null, "sriram_9167", null, null);
         doThrow(new ApiException(HttpStatus.CONFLICT, "This LeetCode username is already registered."))
                 .when(usernameUniquenessValidator).validate("sriram_9167", null, null, null);
 
@@ -157,7 +157,7 @@ class StudentServiceTest {
     void createStudentTrimsPhone() {
         CreateStudentRequest req = new CreateStudentRequest(
                 "21CS007", "Ravi", "ravi@college.edu", "CSM", 2, "C", " 9876543210 ",
-                null, null, null);
+                null, null, null, null, null);
         when(studentRepository.save(any(Student.class))).thenAnswer(inv -> inv.getArgument(0));
 
         studentService.createStudent(req);
@@ -175,7 +175,7 @@ class StudentServiceTest {
 
         studentService.updateStudent(id, new UpdateStudentRequest(
                 "21CS001", "Priya Sharma", "priya@college.edu", "CSM", 3, "C", " 9123456789 ",
-                null, null, null));
+                null, null, null, null, null));
 
         verify(studentRepository).save(studentCaptor.capture());
         assertThat(studentCaptor.getValue().getPhone()).isEqualTo("9123456789");

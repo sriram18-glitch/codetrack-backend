@@ -55,6 +55,8 @@ public class StudentService {
                     .year(request.year())
                     .section(normalize(request.section()))
                     .phone(blankToNull(request.phone()))
+                    .githubProfileUrl(blankToNull(request.githubProfileUrl()))
+                    .linkedinProfileUrl(blankToNull(request.linkedinProfileUrl()))
                     .build());
 
             codingProfileRepository.save(CodingProfile.builder()
@@ -139,6 +141,8 @@ public class StudentService {
         student.setYear(request.year());
         student.setSection(normalize(request.section()));
         student.setPhone(blankToNull(request.phone()));
+        student.setGithubProfileUrl(blankToNull(request.githubProfileUrl()));
+        student.setLinkedinProfileUrl(blankToNull(request.linkedinProfileUrl()));
 
         student = studentRepository.save(student);
         Student saved = student;
@@ -186,6 +190,8 @@ public class StudentService {
                 student.getYear(),
                 student.getSection(),
                 student.getPhone(),
+                student.getGithubProfileUrl(),
+                student.getLinkedinProfileUrl(),
                 student.getCreatedAt()
         );
     }

@@ -15,6 +15,14 @@ public record UpdateStudentRequest(
         @NotBlank(message = "Phone number is required")
         @Pattern(regexp = "\\d{10}", message = "Phone number must be exactly 10 digits")
         @Size(max = 20) String phone,
+        @NotBlank(message = "GitHub profile is required")
+        @Pattern(regexp = "^(https?://)([a-zA-Z0-9-]+\\.)*github\\.com/[A-Za-z0-9][A-Za-z0-9_.-]*$",
+                message = "Please enter a valid GitHub profile URL")
+        @Size(max = 255) String githubProfileUrl,
+        @NotBlank(message = "LinkedIn profile is required")
+        @Pattern(regexp = "^(https?://)([a-zA-Z0-9-]+\\.)*linkedin\\.com/in/[A-Za-z0-9][A-Za-z0-9_-]*$",
+                message = "Please enter a valid LinkedIn profile URL")
+        @Size(max = 255) String linkedinProfileUrl,
         @Size(max = 100) String leetcodeUsername,
         @Size(max = 100) String codeforcesUsername,
         @Size(max = 100) String codechefUsername

@@ -43,6 +43,12 @@ public class Student {
     @Column(nullable = false, length = 20)
     private String phone;
 
+    @Column(name = "github_profile_url", length = 255)
+    private String githubProfileUrl;
+
+    @Column(name = "linkedin_profile_url", length = 255)
+    private String linkedinProfileUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

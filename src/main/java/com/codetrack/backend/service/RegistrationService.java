@@ -81,6 +81,8 @@ public class RegistrationService {
                     .year(request.year())
                     .section(section)
                     .phone(trimToNull(request.phone()))
+                    .githubProfileUrl(trimToNull(request.githubProfileUrl()))
+                    .linkedinProfileUrl(trimToNull(request.linkedinProfileUrl()))
                     .build());
 
             codingProfileRepository.save(CodingProfile.builder()
