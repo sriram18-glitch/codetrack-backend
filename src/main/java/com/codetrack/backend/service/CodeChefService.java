@@ -36,6 +36,8 @@ public class CodeChefService {
     private static final Pattern STAR_DIV_PATTERN = Pattern.compile("<div class=\"rating-star\">(.*?)</div>", Pattern.DOTALL);
     private static final Pattern SOLVED_PATTERN = Pattern.compile(
             "<h3>\\s*Total Problems Solved:\\s*(\\d+)\\s*</h3>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NOT_FOUND_PATTERN = Pattern.compile(
+            "does not exist in our database", Pattern.CASE_INSENSITIVE);
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -126,11 +128,12 @@ public class CodeChefService {
             }
             String html = response.getBody();
 
-            Matcher ratingMatcher = RATING_PATTERN.matcher(html);
-            Integer rating = ratingMatcher.find() ? Integer.parseInt(ratingMatcher.group(1)) : null;
-            if (rating == null) {
+            if (pageRepresentsMissingUser(html, handle)) {
                 return Optional.empty();
             }
+
+            Matcher ratingMatcher = RATING_PATTERN.matcher(html);
+            Integer rating = ratingMatcher.find() ? Integer.parseInt(ratingMatcher.group(1)) : null;
 
             String stars = null;
             Matcher starDiv = STAR_DIV_PATTERN.matcher(html);
@@ -152,6 +155,21 @@ public class CodeChefService {
             log.warn("CodeChef profile scrape failed for '{}': {}", handle, ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Decides whether a CodeChef page actually represents an existing account.
+     * Existence is determined from the page content itself, not from optional
+     * statistics (rating, contests, recent activity). A profile is treated as
+     * missing only when CodeChef explicitly reports the user as not found or the
+     * page does not reference the handle at all. This keeps valid new or inactive
+     * profiles (e.g. no rating, no contests) from being rejected.
+     */
+    private boolean pageRepresentsMissingUser(String html, String handle) {
+        if (NOT_FOUND_PATTERN.matcher(html).find()) {
+            return true;
+        }
+        return !html.toLowerCase().contains(handle.toLowerCase());
     }
 
     private HttpEntity<Void> entityWithBrowserHeaders() {
