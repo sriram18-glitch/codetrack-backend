@@ -54,27 +54,54 @@ class CodeChefServiceTest {
         stubRatingsApi("{\"success\": true, \"all\": []}");
         stubProfilePage("<html><title>laxman_08 | CodeChef User Profile</title>"
                 + "<div class=\"user-details-container\">laxman_08</div>"
-                + "<h3>Total Problems Solved: 14</h3></html>");
+                + "<h3>Total Problems Solved: 14</h3>"
+                + "<h3>Contests (0) </h3></html>");
 
         Optional<PlatformData> result = service.fetch("laxman_08");
 
         assertThat(result).isPresent();
         assertThat(result.get().rating()).isNull();
         assertThat(result.get().problemsSolved()).isEqualTo(14);
+        assertThat(result.get().stars()).isNull();
+        assertThat(result.get().globalRanking()).isNull();
+        assertThat(result.get().contestCount()).isEqualTo(0);
     }
 
     @Test
     void activeProfileWithRatingIsAccepted() {
         stubRatingsApi("{\"success\": true, \"all\": []}");
-        stubProfilePage("<html><title>active_user | CodeChef User Profile</title>"
-                + "<div class=\"rating-number\">1750</div>"
-                + "<h3>Total Problems Solved: 100</h3></html>");
+        stubProfilePage("<html><title>chunk_world_46 | CodeChef User Profile</title>"
+                + "<div class=\"rating-number\">1196</div>"
+                + "<div class=\"rating-star\"><span style=\"background-color:#666666\">&#9733;</span></div>"
+                + "<div class=\"rating-ranks\"><a href=\"/ratings/all\"><strong>88147</strong></a> Global Rank</div>"
+                + "<h3>Total Problems Solved: 134</h3>"
+                + "<h3>Contests (31) </h3></html>");
 
-        Optional<PlatformData> result = service.fetch("active_user");
+        Optional<PlatformData> result = service.fetch("chunk_world_46");
 
         assertThat(result).isPresent();
-        assertThat(result.get().rating()).isEqualTo(1750);
-        assertThat(result.get().problemsSolved()).isEqualTo(100);
+        assertThat(result.get().rating()).isEqualTo(1196);
+        assertThat(result.get().problemsSolved()).isEqualTo(134);
+        assertThat(result.get().stars()).isEqualTo("1★");
+        assertThat(result.get().globalRanking()).isEqualTo(88147);
+        assertThat(result.get().contestCount()).isEqualTo(31);
+    }
+
+    @Test
+    void starsAreParsedAcrossGlyphRepresentations() {
+        stubRatingsApi("{\"success\": true, \"all\": []}");
+        stubProfilePage("<html><title>star_user | CodeChef User Profile</title>"
+                + "<div class=\"rating-star\">"
+                + "<span>&#9733;</span><span>&#9733;</span><span>&#9734;</span><span>★</span><span>☆</span>"
+                + "</div>"
+                + "<h3>Total Problems Solved: 5</h3>"
+                + "<h3>Contests (0) </h3></html>");
+
+        Optional<PlatformData> result = service.fetch("star_user");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().stars()).isEqualTo("5★");
+        assertThat(result.get().problemsSolved()).isEqualTo(5);
     }
 
     @Test

@@ -34,8 +34,13 @@ public class CodeChefService {
 
     private static final Pattern RATING_PATTERN = Pattern.compile("class=\"rating-number\">\\s*(\\d{2,5})");
     private static final Pattern STAR_DIV_PATTERN = Pattern.compile("<div class=\"rating-star\">(.*?)</div>", Pattern.DOTALL);
+    private static final Pattern STAR_GLYPH_PATTERN = Pattern.compile("&#9733;|&#9734;|★|☆");
     private static final Pattern SOLVED_PATTERN = Pattern.compile(
             "<h3>\\s*Total Problems Solved:\\s*(\\d+)\\s*</h3>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern GLOBAL_RANK_PATTERN = Pattern.compile(
+            "<a href=\"/ratings/all\">\\s*<strong>\\s*(\\d+)\\s*</strong>");
+    private static final Pattern CONTEST_PATTERN = Pattern.compile(
+            "<h3>\\s*Contests\\s*\\((\\d+)\\)\\s*</h3>", Pattern.CASE_INSENSITIVE);
     private static final Pattern NOT_FOUND_PATTERN = Pattern.compile(
             "does not exist in our database", Pattern.CASE_INSENSITIVE);
 
@@ -72,7 +77,7 @@ public class CodeChefService {
                 null,
                 null,
                 firstNonNull(PlatformData::globalRanking, api, profile),
-                null,
+                firstNonNull(PlatformData::contestCount, profile, api),
                 firstNonNull(PlatformData::stars, api, profile)
         ));
     }
@@ -132,29 +137,56 @@ public class CodeChefService {
                 return Optional.empty();
             }
 
-            Matcher ratingMatcher = RATING_PATTERN.matcher(html);
-            Integer rating = ratingMatcher.find() ? Integer.parseInt(ratingMatcher.group(1)) : null;
-
-            String stars = null;
-            Matcher starDiv = STAR_DIV_PATTERN.matcher(html);
-            if (starDiv.find()) {
-                int count = starDiv.group(1).split("&#9733;", -1).length - 1;
-                if (count > 0) {
-                    stars = count + "★";
-                }
-            }
-
-            Integer solved = null;
-            Matcher solvedMatcher = SOLVED_PATTERN.matcher(html);
-            if (solvedMatcher.find()) {
-                solved = Integer.parseInt(solvedMatcher.group(1));
-            }
-
-            return Optional.of(new PlatformData(PLATFORM, rating, null, null, solved, null, null, null, null, null, stars));
+            return Optional.of(new PlatformData(
+                    PLATFORM,
+                    extractRating(html),
+                    null,
+                    null,
+                    extractSolved(html),
+                    null,
+                    null,
+                    null,
+                    extractGlobalRank(html),
+                    extractContests(html),
+                    extractStars(html)
+            ));
         } catch (RestClientException | NumberFormatException ex) {
             log.warn("CodeChef profile scrape failed for '{}': {}", handle, ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    private Integer extractRating(String html) {
+        Matcher matcher = RATING_PATTERN.matcher(html);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : null;
+    }
+
+    private Integer extractSolved(String html) {
+        Matcher matcher = SOLVED_PATTERN.matcher(html);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : null;
+    }
+
+    private String extractStars(String html) {
+        Matcher div = STAR_DIV_PATTERN.matcher(html);
+        if (!div.find()) {
+            return null;
+        }
+        int count = 0;
+        Matcher glyph = STAR_GLYPH_PATTERN.matcher(div.group(1));
+        while (glyph.find()) {
+            count++;
+        }
+        return count > 0 ? count + "★" : null;
+    }
+
+    private Integer extractGlobalRank(String html) {
+        Matcher matcher = GLOBAL_RANK_PATTERN.matcher(html);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : null;
+    }
+
+    private Integer extractContests(String html) {
+        Matcher matcher = CONTEST_PATTERN.matcher(html);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : null;
     }
 
     /**
