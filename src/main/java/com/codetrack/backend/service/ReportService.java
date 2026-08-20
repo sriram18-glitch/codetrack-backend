@@ -36,6 +36,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -318,6 +319,116 @@ public class ReportService {
             return out.toByteArray();
         } catch (Exception ex) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate year report");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] generateSectionReport(String year) {
+        int target;
+        try {
+            target = Integer.parseInt(year);
+        } catch (NumberFormatException ex) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Year must be a number between 1 and 4");
+        }
+        if (target < 1 || target > 4) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Year must be between 1 and 4");
+        }
+
+        Map<UUID, Performance> performanceByStudent = performanceRepository.findAll().stream()
+                .collect(Collectors.toMap(p -> p.getStudent().getId(), Function.identity()));
+        Map<String, List<Student>> bySection = studentRepository.findAll().stream()
+                .filter(s -> s.getYear() != null && s.getYear() == target)
+                .collect(Collectors.groupingBy(
+                        s -> s.getSection() == null || s.getSection().isBlank() ? "Unassigned" : s.getSection().trim(),
+                        TreeMap::new,
+                        Collectors.toList()
+                ));
+
+        Document document = new Document();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            PdfWriter writer = PdfWriter.getInstance(document, out);
+            writer.setPageEvent(new PdfPageEventHelper() {
+                @Override
+                public void onEndPage(PdfWriter w, Document d) {
+                    Rectangle rect = w.getPageSize();
+                    Font font = FontFactory.getFont(FontFactory.HELVETICA, 9, new Color(120, 120, 120));
+                    ColumnText.showTextAligned(w.getDirectContent(), Element.ALIGN_CENTER,
+                            new Phrase("CodeTrack - Page " + w.getPageNumber(), font),
+                            (rect.getLeft() + rect.getRight()) / 2, rect.getBottom() + 18, 0);
+                }
+            });
+            document.open();
+
+            document.add(alignCenter(title("CodeTrack")));
+            document.add(alignCenter(new Paragraph("Section-wise Performance Report",
+                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, new Color(60, 60, 60)))));
+            document.add(alignCenter(new Paragraph("Department of CSE (AI & ML)")));
+            document.add(alignCenter(new Paragraph("Academic Year: " + romanYear(target))));
+            document.add(alignCenter(new Paragraph("Generated On: " + formatNow())));
+            document.add(new Paragraph(" "));
+
+            if (bySection.isEmpty()) {
+                document.add(new Paragraph("No students found for Year " + romanYear(target) + "."));
+            } else {
+                for (Map.Entry<String, List<Student>> entry : bySection.entrySet()) {
+                    String section = entry.getKey();
+                    List<Student> students = entry.getValue().stream()
+                            .sorted(PerformanceSort.performanceOrderByStudent(performanceByStudent))
+                            .toList();
+
+                    document.add(new Paragraph(" "));
+                    document.add(new Paragraph("Section " + section,
+                            FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, new Color(60, 60, 60))));
+
+                    Student topperStudent = students.isEmpty() ? null : students.get(0);
+                    Performance topper = topperStudent == null ? null : performanceByStudent.get(topperStudent.getId());
+                    if (topperStudent != null && topper != null && topper.getOverallScore() != null) {
+                        document.add(new Paragraph("Section Topper: " + topperStudent.getName() + " - "
+                                + topper.getOverallScore() + "/10",
+                                FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(79, 70, 229))));
+                    } else if (topperStudent != null) {
+                        document.add(new Paragraph("Section Topper: " + topperStudent.getName() + " - no overall score yet",
+                                FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(79, 70, 229))));
+                    }
+
+                    PdfPTable table = new PdfPTable(10);
+                    table.setWidthPercentage(100);
+                    table.setSpacingBefore(6);
+                    table.setHeaderRows(1);
+                    for (String h : new String[]{"Rank", "Roll No.", "Name", "Section", "LeetCode Problems Solved",
+                            "Codeforces Problems Solved", "CodeChef Problems Solved", "Total Problems Solved",
+                            "Consistency (/10)", "Overall Score (/10)"}) {
+                        table.addCell(cell(h, true));
+                    }
+                    int rank = 1;
+                    for (Student s : students) {
+                        Performance p = performanceByStudent.get(s.getId());
+                        Integer lc = p == null ? null : p.getLeetcodeSolved();
+                        Integer cf = p == null ? null : p.getCodeforcesSolved();
+                        Integer cc = p == null ? null : p.getCodechefSolved();
+                        int total = (lc == null ? 0 : lc) + (cf == null ? 0 : cf) + (cc == null ? 0 : cc);
+                        table.addCell(cell(String.valueOf(rank++), false));
+                        table.addCell(cell(s.getRollNumber(), false));
+                        table.addCell(cell(s.getName(), false));
+                        table.addCell(cell(section, false));
+                        table.addCell(cell(lc == null ? "0" : String.valueOf(lc), false));
+                        table.addCell(cell(cf == null ? "0" : String.valueOf(cf), false));
+                        table.addCell(cell(cc == null ? "0" : String.valueOf(cc), false));
+                        table.addCell(cell(String.valueOf(total), false));
+                        table.addCell(cell(p == null || p.getConsistencyScore() == null
+                                ? "0" : String.valueOf(p.getConsistencyScore()), false));
+                        table.addCell(cell(p == null || p.getOverallScore() == null
+                                ? "0" : String.valueOf(p.getOverallScore()), false));
+                    }
+                    document.add(table);
+                }
+            }
+
+            document.close();
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate section report");
         }
     }
 

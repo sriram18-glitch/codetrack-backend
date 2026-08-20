@@ -44,6 +44,17 @@ public class ReportController {
         return ResponseEntity.ok().headers(headers).body(pdf);
     }
 
+    @GetMapping(value = "/section/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download a PDF section-wise performance report for a specific year")
+    public ResponseEntity<byte[]> sectionReport(@RequestParam("year") String year) {
+        byte[] pdf = reportService.generateSectionReport(year);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(
+                ContentDisposition.attachment().filename("section-report-year-" + year + ".pdf").build());
+        return ResponseEntity.ok().headers(headers).body(pdf);
+    }
+
     @GetMapping(value = "/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     @Operation(summary = "Download a PDF year-wise report (all years or a specific year)")
     public ResponseEntity<byte[]> yearReport(
